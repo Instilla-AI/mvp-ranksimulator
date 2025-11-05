@@ -5,12 +5,13 @@ import { api } from "@/lib/api";
 export default function AuditAIPage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [result, setResult] = useState<{
     ai_visibility_score: number;
     coverage_details: { covered_queries: number; total_queries: number };
     query_details: Array<{ query: string; type: string; covered: boolean }>;
   } | null>(null);
-  const [error, setError] = useState("");
+  const [progress, setProgress] = useState("");
 
   const handleAnalyze = async () => {
     if (!url) {
@@ -21,6 +22,7 @@ export default function AuditAIPage() {
     setLoading(true);
     setError("");
     setResult(null);
+    setProgress("Starting analysis...");
 
     try {
       // Start analysis
@@ -31,8 +33,14 @@ export default function AuditAIPage() {
         try {
           const data = await api.checkStatus(job_id);
           
+          // Update progress message
+          if (data.progress) {
+            setProgress(data.progress);
+          }
+          
           if (data.status === 'completed') {
             setResult(data.result);
+            setProgress("Analysis completed!");
             setLoading(false);
           } else if (data.status === 'error') {
             setError(data.error || 'Analysis failed');
@@ -105,6 +113,26 @@ export default function AuditAIPage() {
             'Analyze URL'
           )}
         </button>
+
+        {/* Progress Indicator */}
+        {loading && progress && (
+          <div className="mt-4 rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
+            <div className="flex items-center">
+              <svg className="mr-3 h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <div>
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                  {progress}
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  This may take 30-60 seconds...
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Results */}
