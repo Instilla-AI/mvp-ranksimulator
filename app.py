@@ -38,7 +38,7 @@ ALLOWED_FORMATS = [
 ]
 
 def get_url_insights_and_content(url: str) -> dict:
-    """Extract entity and content from URL using Gemini"""
+    """Extract entity, content, and language from URL using Gemini"""
     try:
         # Use Gemini to extract content from URL
         model = genai.GenerativeModel(MODEL_FOR_URL_CONTEXT)
@@ -46,11 +46,13 @@ def get_url_insights_and_content(url: str) -> dict:
         prompt = f"""Analyze the webpage at {url}.
         
 1. Identify the main entity/topic of the page
-2. Extract 5-10 key content chunks that represent the main information on the page
+2. Detect the primary language of the page content (ISO 639-1 code: en, it, es, fr, de, etc.)
+3. Extract 5-10 key content chunks that represent the main information on the page
 
 Respond in JSON format:
 {{
   "entity": "main topic/entity name",
+  "language": "language_code",
   "content_chunks": ["chunk1", "chunk2", ...]
 }}"""
         
@@ -67,6 +69,7 @@ Respond in JSON format:
         data = json.loads(text)
         
         entity = data.get("entity", "Unknown")
+        language = data.get("language", "en")  # Default to English
         content_chunks = data.get("content_chunks", [])
         
         if not content_chunks:
@@ -75,12 +78,14 @@ Respond in JSON format:
         return {
             "status": "success",
             "entity": entity,
+            "language": language,
             "content_chunks": content_chunks
         }
     except Exception as e:
         return {
             "status": "failure",
             "entity": None,
+            "language": "en",
             "content_chunks": [],
             "error": str(e)
         }
@@ -113,9 +118,28 @@ def cosine_similarity(vec1, vec2):
         return 0.0
     return float(dot_product / (norm_vec1 * norm_vec2))
 
-def generate_query_fanout_prompt(entity: str, mode: str = "complex") -> str:
-    """Generate prompt for query fan-out with routing"""
+def generate_query_fanout_prompt(entity: str, language: str = "en", mode: str = "complex") -> str:
+    """Generate prompt for query fan-out with routing in target language"""
     min_queries = 20 if mode == "complex" else 10
+    
+    # Language names for better prompt clarity
+    language_names = {
+        "en": "English",
+        "it": "Italian",
+        "es": "Spanish",
+        "fr": "French",
+        "de": "German",
+        "pt": "Portuguese",
+        "nl": "Dutch",
+        "pl": "Polish",
+        "ru": "Russian",
+        "ja": "Japanese",
+        "zh": "Chinese",
+        "ko": "Korean",
+        "ar": "Arabic"
+    }
+    
+    language_name = language_names.get(language, "English")
     
     routing_note = (
         "For EACH expanded query, also identify the most likely CONTENT TYPE / FORMAT the routing system would prefer "
@@ -124,8 +148,16 @@ def generate_query_fanout_prompt(entity: str, mode: str = "complex") -> str:
         ".\nReturn it in a field named 'routing_format' and give a short 'format_reason' (1 sentence)."
     )
     
+    language_instruction = f"""
+IMPORTANT: Generate all queries in {language_name} (language code: {language}).
+The queries must be natural and idiomatic in {language_name}, as if a native speaker was searching.
+Keep the JSON structure and field names in English, but translate the query text and reasoning to {language_name}.
+"""
+    
     return f"""You are simulating Google's AI Mode query fan-out for generative search systems.
 The main entity/topic is: "{entity}". The selected mode is: "{mode}".
+
+{language_instruction}
 
 Your task is to generate at least {min_queries} unique synthetic queries that users might ask about this entity.
 
@@ -165,11 +197,11 @@ Return only a valid JSON object in this exact schema:
   ]
 }}"""
 
-def generate_synthetic_queries(entity: str, mode: str = "complex") -> dict:
-    """Generate synthetic queries with routing using Gemini"""
+def generate_synthetic_queries(entity: str, language: str = "en", mode: str = "complex") -> dict:
+    """Generate synthetic queries with routing using Gemini, translated to target language"""
     try:
         model = genai.GenerativeModel(MODEL_FOR_QUERY_GEN)
-        prompt = generate_query_fanout_prompt(entity, mode)
+        prompt = generate_query_fanout_prompt(entity, language, mode)
         
         response = model.generate_content(prompt)
         json_text = response.text.strip()
@@ -195,7 +227,7 @@ def generate_synthetic_queries(entity: str, mode: str = "complex") -> dict:
             "expanded_queries": []
         }
 
-def calculate_coverage(queries: list, content_chunks: list, threshold: float = 0.65) -> dict:
+def calculate_coverage(queries: list, content_chunks: list, threshold: float = 0.75) -> dict:
     """Calculate how well content covers synthetic queries"""
     if not queries or not content_chunks:
         return {
@@ -349,13 +381,14 @@ def process_analysis(job_id, url):
             return
         
         entity = url_insights["entity"]
+        language = url_insights["language"]
         content_chunks = url_insights["content_chunks"]
         
-        print(f"[Job {job_id}] Entity identified: {entity}")
+        print(f"[Job {job_id}] Entity identified: {entity}, Language: {language}")
         job_status[job_id] = {"status": "processing", "progress": "Generating synthetic queries..."}
         
-        # Step 2: Generate synthetic queries with routing
-        query_result = generate_synthetic_queries(entity, mode="complex")
+        # Step 2: Generate synthetic queries with routing in detected language
+        query_result = generate_synthetic_queries(entity, language, mode="complex")
         
         if query_result["status"] == "failure":
             job_status[job_id] = {"status": "error", "error": f"Failed to generate queries: {query_result.get('error', 'Unknown error')}"}
