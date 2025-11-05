@@ -16,8 +16,8 @@ OPENAI_API_KEY = "sk-proj-yA9_G4guCuPnUjE9LE_2yoshlplxXhyC4Grt08fiWoc8ngs7FMuvIa
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Models
-MODEL_FOR_URL_CONTEXT = "gemini-1.5-flash-latest"
-MODEL_FOR_QUERY_GEN = "gemini-1.5-pro-latest"
+MODEL_FOR_URL_CONTEXT = "gemini-2.0-flash"
+MODEL_FOR_QUERY_GEN = "gemini-2.0-flash"
 EMBEDDING_MODEL = "models/text-embedding-004"
 
 # Allowed routing formats
