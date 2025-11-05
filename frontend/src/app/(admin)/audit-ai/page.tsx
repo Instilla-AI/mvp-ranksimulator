@@ -28,17 +28,23 @@ export default function AuditAIPage() {
       
       // Poll for results
       const pollStatus = async () => {
-        const data = await api.checkStatus(job_id);
-        
-        if (data.status === 'completed') {
-          setResult(data.result);
+        try {
+          const data = await api.checkStatus(job_id);
+          
+          if (data.status === 'completed') {
+            setResult(data.result);
+            setLoading(false);
+          } else if (data.status === 'error') {
+            setError(data.error || 'Analysis failed');
+            setLoading(false);
+          } else {
+            // Poll again after 2 seconds
+            setTimeout(pollStatus, 2000);
+          }
+        } catch (err) {
+          // Job not found or backend restarted
+          setError('Analysis job lost. Backend may have restarted. Please try again.');
           setLoading(false);
-        } else if (data.status === 'error') {
-          setError(data.error || 'Analysis failed');
-          setLoading(false);
-        } else {
-          // Poll again after 2 seconds
-          setTimeout(pollStatus, 2000);
         }
       };
       
