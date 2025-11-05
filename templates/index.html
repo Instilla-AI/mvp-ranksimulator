@@ -137,13 +137,13 @@
                 
                 <!-- Filter Tabs -->
                 <div class="flex gap-2 mb-6 border-b border-gray-200">
-                    <button onclick="filterQueries('all')" class="filter-tab px-4 py-2 font-semibold text-brand-orange border-b-2 border-brand-orange">
+                    <button onclick="filterQueries('all', this)" class="filter-tab px-4 py-2 font-semibold text-brand-orange border-b-2 border-brand-orange">
                         Tutte (<span id="countAll">0</span>)
                     </button>
-                    <button onclick="filterQueries('covered')" class="filter-tab px-4 py-2 font-semibold text-gray-600 hover:text-brand-orange">
+                    <button onclick="filterQueries('covered', this)" class="filter-tab px-4 py-2 font-semibold text-gray-600 hover:text-brand-orange">
                         Coperte (<span id="countCovered">0</span>)
                     </button>
-                    <button onclick="filterQueries('uncovered')" class="filter-tab px-4 py-2 font-semibold text-gray-600 hover:text-brand-orange">
+                    <button onclick="filterQueries('uncovered', this)" class="filter-tab px-4 py-2 font-semibold text-gray-600 hover:text-brand-orange">
                         Non Coperte (<span id="countUncovered">0</span>)
                     </button>
                 </div>
@@ -241,8 +241,9 @@
             // Display recommendations
             displayRecommendations(data.recommendations);
             
-            // Display queries
-            filterQueries('all');
+            // Display queries - get first tab button
+            const firstTab = document.querySelector('.filter-tab');
+            filterQueries('all', firstTab);
             
             // Show results section
             document.getElementById('resultsSection').classList.remove('hidden');
@@ -291,7 +292,7 @@
             `).join('');
         }
 
-        function filterQueries(filter) {
+        function filterQueries(filter, clickedElement) {
             currentFilter = filter;
             
             // Update tab styles
@@ -299,8 +300,11 @@
                 tab.classList.remove('text-brand-orange', 'border-b-2', 'border-brand-orange');
                 tab.classList.add('text-gray-600');
             });
-            event.target.classList.remove('text-gray-600');
-            event.target.classList.add('text-brand-orange', 'border-b-2', 'border-brand-orange');
+            
+            if (clickedElement) {
+                clickedElement.classList.remove('text-gray-600');
+                clickedElement.classList.add('text-brand-orange', 'border-b-2', 'border-brand-orange');
+            }
             
             // Filter queries
             let filteredQueries = allQueries;
