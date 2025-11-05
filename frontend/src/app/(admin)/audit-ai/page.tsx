@@ -9,6 +9,17 @@ export default function AuditAIPage() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<any>(null);
   const [progress, setProgress] = useState("");
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+
+  const toggleRow = (index: number) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedRows(newExpanded);
+  };
 
   const handleAnalyze = async () => {
     if (!url) {
@@ -235,9 +246,6 @@ export default function AuditAIPage() {
                       Routing
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                      Reasoning
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                       Similarity
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -247,48 +255,78 @@ export default function AuditAIPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                   {result.query_details?.map((query: any, index: number) => (
-                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                        {query.query}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                        {query.type}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                        <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900/20 dark:text-purple-400">
-                          {query.routing || 'N/A'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                        <span className="max-w-xs truncate block" title={query.reasoning}>
-                          {query.reasoning || 'N/A'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        {query.similarity !== undefined ? (
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            query.similarity >= 0.75
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                              : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
-                          }`}>
-                            {(query.similarity * 100).toFixed(1)}%
+                    <>
+                      <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => toggleRow(index)}
+                              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                              <svg
+                                className={`h-4 w-4 transition-transform ${expandedRows.has(index) ? 'rotate-90' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </button>
+                            <span>{query.query}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                          {query.type}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                          <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900/20 dark:text-purple-400">
+                            {query.routing || 'N/A'}
                           </span>
-                        ) : (
-                          <span className="text-gray-400">N/A</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                            query.covered
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                          }`}
-                        >
-                          {query.covered ? '✓ Covered' : '✗ Not Covered'}
-                        </span>
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          {query.similarity !== undefined ? (
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              query.similarity >= 0.75
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                            }`}>
+                              {(query.similarity * 100).toFixed(1)}%
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">N/A</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                              query.covered
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                            }`}
+                          >
+                            {query.covered ? '✓ Covered' : '✗ Not Covered'}
+                          </span>
+                        </td>
+                      </tr>
+                      {expandedRows.has(index) && (
+                        <tr key={`${index}-details`} className="bg-gray-50 dark:bg-gray-800/30">
+                          <td colSpan={5} className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+                            <div className="space-y-3 text-sm">
+                              <div>
+                                <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Reasoning:</h4>
+                                <p className="text-gray-600 dark:text-gray-400">{query.reasoning || 'N/A'}</p>
+                              </div>
+                              {query.best_chunk && (
+                                <div>
+                                  <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Best Matching Chunk:</h4>
+                                  <p className="text-gray-600 dark:text-gray-400 italic">{query.best_chunk}</p>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))}
                 </tbody>
               </table>

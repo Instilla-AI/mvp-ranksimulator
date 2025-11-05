@@ -303,16 +303,20 @@ def calculate_coverage(queries: list, content_chunks: list, threshold: float = 0
                 "routing": query_obj.get("routing_format", ""),
                 "format_reason": query_obj.get("format_reason", ""),
                 "user_intent": query_obj.get("user_intent", ""),
-                "reasoning": query_obj.get("reasoning", "")
+                "reasoning": query_obj.get("reasoning", ""),
+                "best_chunk": ""
             })
             continue
         
         max_similarity = 0.0
+        best_chunk = ""
         for chunk in content_chunks:
             chunk_embedding = get_embedding(chunk)
             if chunk_embedding.size > 0:
                 sim = cosine_similarity(query_embedding, chunk_embedding)
-                max_similarity = max(max_similarity, sim)
+                if sim > max_similarity:
+                    max_similarity = sim
+                    best_chunk = chunk
         
         is_covered = max_similarity >= threshold
         if is_covered:
@@ -322,11 +326,12 @@ def calculate_coverage(queries: list, content_chunks: list, threshold: float = 0
             "query": query_text,
             "type": query_obj.get("type", ""),
             "covered": is_covered,
-            "similarity": max_similarity,  # Changed from max_similarity to similarity
-            "routing": query_obj.get("routing_format", ""),  # Changed from routing_format to routing
+            "similarity": max_similarity,
+            "routing": query_obj.get("routing_format", ""),
             "format_reason": query_obj.get("format_reason", ""),
             "user_intent": query_obj.get("user_intent", ""),
-            "reasoning": query_obj.get("reasoning", "")
+            "reasoning": query_obj.get("reasoning", ""),
+            "best_chunk": best_chunk if is_covered else ""
         })
     
     coverage_score = (covered_count / len(queries)) * 100 if queries else 0.0
