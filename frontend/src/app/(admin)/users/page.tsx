@@ -22,10 +22,15 @@ export default function UsersPage() {
   const loadUsers = async () => {
     try {
       setLoading(true);
+      setError("");
+      console.log("Loading users...");
       const data = await api.getUsers();
+      console.log("Users loaded:", data);
       setUsers(data.users || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load users");
+      console.error("Error loading users:", err);
+      const errorMsg = err instanceof Error ? err.message : "Failed to load users";
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
