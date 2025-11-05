@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
 interface User {
@@ -11,6 +12,7 @@ interface User {
 }
 
 export default function UsersPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -49,13 +51,21 @@ export default function UsersPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold text-gray-900 dark:text-white">
-          Gestione Utenti
-        </h1>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          Visualizza e gestisci gli utenti del sistema
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold text-gray-900 dark:text-white">
+            Gestione Utenti
+          </h1>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Visualizza e gestisci gli utenti del sistema
+          </p>
+        </div>
+        <button
+          onClick={() => router.push("/users/add")}
+          className="rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700"
+        >
+          + Aggiungi Utente
+        </button>
       </div>
 
       {error && (
@@ -131,13 +141,21 @@ export default function UsersPage() {
                         {new Date(user.created_at).toLocaleDateString('it-IT')}
                       </td>
                       <td className="px-6 py-4">
-                        <button
-                          onClick={() => handleDelete(user.id)}
-                          disabled={user.role === 'admin'}
-                          className="text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          {user.role === 'admin' ? 'Protetto' : 'Elimina'}
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => router.push(`/users/edit/${user.id}`)}
+                            className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                          >
+                            Modifica
+                          </button>
+                          <button
+                            onClick={() => handleDelete(user.id)}
+                            disabled={user.role === 'admin'}
+                            className="text-sm font-medium text-red-600 hover:text-red-700 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-red-400 dark:hover:text-red-300"
+                          >
+                            {user.role === 'admin' ? 'Protetto' : 'Elimina'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

@@ -54,9 +54,10 @@ app.register_blueprint(auth_bp)
 job_results = {}
 job_status = {}
 
-# API Keys
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyDD_lRQ99lz0R_J5_vOspGtF5ITA2DmRHM')
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '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')
+# API Keys - NEVER hardcode, always use environment variables
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable is required")
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
