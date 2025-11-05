@@ -428,93 +428,95 @@ def index():
 
 def process_analysis(job_id, url, user_id):
     """Background task to process URL analysis"""
-    try:
-        print(f"[Job {job_id}] Starting analysis for: {url}")
+    with app.app_context():
+        try:
+            print(f"[Job {job_id}] Starting analysis for: {url}")
+            
+            # Update job in database
+            job = AnalysisJob.query.get(job_id)
+            if job:
+                job.status = "processing"
+                job.progress = "Extracting content..."
+                db.session.commit()
+            
+            # Step 1: Extract entity and content from URL
+            url_insights = get_url_insights_and_content(url)
         
-        # Update job in database
-        job = AnalysisJob.query.get(job_id)
-        if job:
-            job.status = "processing"
-            job.progress = "Extracting content..."
-            db.session.commit()
-        
-        # Step 1: Extract entity and content from URL
-        url_insights = get_url_insights_and_content(url)
-        
-        if url_insights["status"] == "failure":
+            
+            if url_insights["status"] == "failure":
+                if job:
+                    job.status = "error"
+                    job.error = f"Failed to extract content: {url_insights.get('error', 'Unknown error')}"
+                    db.session.commit()
+                return
+            
+            entity = url_insights["entity"]
+            language = url_insights["language"]
+            content_chunks = url_insights["content_chunks"]
+            
+            print(f"[Job {job_id}] Entity identified: {entity}, Language: {language}")
+            if job:
+                job.progress = "Generating synthetic queries..."
+                db.session.commit()
+            
+            # Step 2: Generate synthetic queries with routing in detected language
+            query_result = generate_synthetic_queries(entity, language, mode="complex")
+            
+            if query_result["status"] == "failure":
+                if job:
+                    job.status = "error"
+                    job.error = f"Failed to generate queries: {query_result.get('error', 'Unknown error')}"
+                    db.session.commit()
+                return
+            
+            expanded_queries = query_result["expanded_queries"]
+            generation_details = query_result["generation_details"]
+            
+            print(f"[Job {job_id}] Generated {len(expanded_queries)} queries")
+            if job:
+                job.progress = "Calculating coverage..."
+                db.session.commit()
+            
+            # Step 3: Calculate coverage
+            coverage_data = calculate_coverage(expanded_queries, content_chunks)
+            
+            print(f"[Job {job_id}] Coverage calculated: {coverage_data['coverage_score']:.2f}%")
+            if job:
+                job.progress = "Generating recommendations..."
+                db.session.commit()
+            
+            # Step 4: Generate recommendations
+            recommendations = generate_recommendations(coverage_data, entity)
+            
+            # Prepare response
+            response_data = {
+                "url": url,
+                "entity": entity,
+                "ai_visibility_score": round(coverage_data["coverage_score"], 2),
+                "coverage_details": {
+                    "covered_queries": coverage_data["covered_count"],
+                    "total_queries": coverage_data["total_queries"],
+                    "coverage_percentage": round(coverage_data["coverage_score"], 2)
+                },
+                "generation_details": generation_details,
+                "query_details": coverage_data["query_details"],
+                "recommendations": recommendations,
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            }
+            
+            if job:
+                job.status = "completed"
+                job.result_data = response_data
+                db.session.commit()
+            print(f"[Job {job_id}] Analysis completed successfully")
+            
+        except Exception as e:
+            print(f"[Job {job_id}] Error: {str(e)}")
+            job = AnalysisJob.query.get(job_id)
             if job:
                 job.status = "error"
-                job.error = f"Failed to extract content: {url_insights.get('error', 'Unknown error')}"
+                job.error = str(e)
                 db.session.commit()
-            return
-        
-        entity = url_insights["entity"]
-        language = url_insights["language"]
-        content_chunks = url_insights["content_chunks"]
-        
-        print(f"[Job {job_id}] Entity identified: {entity}, Language: {language}")
-        if job:
-            job.progress = "Generating synthetic queries..."
-            db.session.commit()
-        
-        # Step 2: Generate synthetic queries with routing in detected language
-        query_result = generate_synthetic_queries(entity, language, mode="complex")
-        
-        if query_result["status"] == "failure":
-            if job:
-                job.status = "error"
-                job.error = f"Failed to generate queries: {query_result.get('error', 'Unknown error')}"
-                db.session.commit()
-            return
-        
-        expanded_queries = query_result["expanded_queries"]
-        generation_details = query_result["generation_details"]
-        
-        print(f"[Job {job_id}] Generated {len(expanded_queries)} queries")
-        if job:
-            job.progress = "Calculating coverage..."
-            db.session.commit()
-        
-        # Step 3: Calculate coverage
-        coverage_data = calculate_coverage(expanded_queries, content_chunks)
-        
-        print(f"[Job {job_id}] Coverage calculated: {coverage_data['coverage_score']:.2f}%")
-        if job:
-            job.progress = "Generating recommendations..."
-            db.session.commit()
-        
-        # Step 4: Generate recommendations
-        recommendations = generate_recommendations(coverage_data, entity)
-        
-        # Prepare response
-        response_data = {
-            "url": url,
-            "entity": entity,
-            "ai_visibility_score": round(coverage_data["coverage_score"], 2),
-            "coverage_details": {
-                "covered_queries": coverage_data["covered_count"],
-                "total_queries": coverage_data["total_queries"],
-                "coverage_percentage": round(coverage_data["coverage_score"], 2)
-            },
-            "generation_details": generation_details,
-            "query_details": coverage_data["query_details"],
-            "recommendations": recommendations,
-            "timestamp": datetime.datetime.utcnow().isoformat()
-        }
-        
-        if job:
-            job.status = "completed"
-            job.result_data = response_data
-            db.session.commit()
-        print(f"[Job {job_id}] Analysis completed successfully")
-        
-    except Exception as e:
-        print(f"[Job {job_id}] Error: {str(e)}")
-        job = AnalysisJob.query.get(job_id)
-        if job:
-            job.status = "error"
-            job.error = str(e)
-            db.session.commit()
 
 @app.route('/api/analyze', methods=['POST'])
 @jwt_required()
