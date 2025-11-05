@@ -213,21 +213,31 @@ The main entity/topic is: "{entity}". The selected mode is: "{mode}".
 
 {language_instruction}
 
-Your task is to generate at least {min_queries} unique synthetic queries that users might ask about this entity.
+Your task is to generate at least {min_queries} DIVERSE and SPECIFIC synthetic queries that users might ask about this entity.
+
+CRITICAL: Generate queries that are CHALLENGING and SPECIFIC, not just generic reformulations.
+Focus on:
+- Detailed procedural questions (step-by-step processes, techniques)
+- Specific comparisons with alternatives or competitors
+- Questions about side effects, risks, contraindications
+- Cost, duration, and practical considerations
+- Scientific mechanisms and technical details
+- Real-world applications and use cases
+- Expert-level questions that require deep knowledge
 
 Each of the following transformation types MUST be represented:
-1. Reformulations
-2. Related Queries
-3. Implicit Queries
-4. Comparative Queries
-5. Entity Expansions
-6. Personalized Queries
+1. Reformulations - but make them SPECIFIC (e.g., "how does X work at molecular level")
+2. Related Queries - explore ADJACENT topics and alternatives
+3. Implicit Queries - what users REALLY want to know (risks, costs, effectiveness)
+4. Comparative Queries - detailed comparisons with specific alternatives
+5. Entity Expansions - dive into SUB-COMPONENTS and technical aspects
+6. Personalized Queries - specific use cases and scenarios
 
 For each query, provide:
-- The query text
+- The query text (MUST be specific and detailed)
 - The type (reformulation, related, implicit, comparative, entity_expansion, personalized)
 - User intent (what the user is trying to accomplish)
-- Reasoning (why this query is relevant)
+- Reasoning (why this query is relevant and challenging)
 - Routing format (from the allowed list)
 - Format reason (why this format is best)
 
