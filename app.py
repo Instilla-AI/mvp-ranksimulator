@@ -547,7 +547,7 @@ def check_status(job_id):
         
         # Save to database
         try:
-            user_id = get_jwt_identity()
+            user_id = int(get_jwt_identity())
             result_data = job_results[job_id]
             
             analysis = Analysis(
@@ -573,7 +573,7 @@ def check_status(job_id):
 def get_history():
     """Get user's analysis history"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         
@@ -597,7 +597,7 @@ def get_history():
 def get_analysis(analysis_id):
     """Get specific analysis with full data"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         analysis = Analysis.query.filter_by(id=analysis_id, user_id=user_id).first()
         
         if not analysis:
@@ -613,7 +613,7 @@ def get_analysis(analysis_id):
 def delete_analysis(analysis_id):
     """Delete specific analysis"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         analysis = Analysis.query.filter_by(id=analysis_id, user_id=user_id).first()
         
         if not analysis:

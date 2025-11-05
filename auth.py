@@ -29,9 +29,9 @@ def register():
         db.session.add(user)
         db.session.commit()
         
-        # Create access token
+        # Create access token (identity must be string)
         access_token = create_access_token(
-            identity=user.id,
+            identity=str(user.id),
             expires_delta=timedelta(days=7)
         )
         
@@ -63,9 +63,9 @@ def login():
         if not user or not user.check_password(password):
             return jsonify({'error': 'Invalid email or password'}), 401
         
-        # Create access token
+        # Create access token (identity must be string)
         access_token = create_access_token(
-            identity=user.id,
+            identity=str(user.id),
             expires_delta=timedelta(days=7)
         )
         
@@ -83,7 +83,7 @@ def login():
 def get_current_user():
     """Get current user info"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         user = User.query.get(user_id)
         
         if not user:
@@ -99,7 +99,7 @@ def get_current_user():
 def get_users():
     """Get all users (admin only)"""
     try:
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())
         current_user = User.query.get(user_id)
         
         if not current_user or current_user.role != 'admin':
@@ -118,7 +118,7 @@ def get_users():
 def update_user(user_id):
     """Update user (admin only or own profile)"""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
         # Check if admin or updating own profile
@@ -157,7 +157,7 @@ def update_user(user_id):
 def delete_user(user_id):
     """Delete user (admin only)"""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
         if current_user.role != 'admin':
