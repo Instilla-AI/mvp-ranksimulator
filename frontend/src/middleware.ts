@@ -30,7 +30,7 @@ export const config = {
   matcher: [
     '/',
     '/audit-ai/:path*',
-    '/profile/:path*',
+    '/users/:path*',
     '/signin',
     '/signup',
   ],
