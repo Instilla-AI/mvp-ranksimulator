@@ -36,6 +36,32 @@ const othersItems: NavItem[] = [];
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
+  
+  // Get user role from localStorage
+  const getUserRole = () => {
+    if (typeof window !== 'undefined') {
+      const user = localStorage.getItem('user');
+      if (user) {
+        try {
+          const userData = JSON.parse(user);
+          return userData.role;
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  };
+  
+  const userRole = getUserRole();
+  
+  // Filter nav items based on role
+  const filteredNavItems = navItems.filter(item => {
+    if (item.path === '/users') {
+      return userRole === 'admin';
+    }
+    return true;
+  });
 
   const renderMenuItems = (
     navItems: NavItem[],
@@ -292,7 +318,7 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
+              {renderMenuItems(filteredNavItems, "main")}
             </div>
           </div>
         </nav>

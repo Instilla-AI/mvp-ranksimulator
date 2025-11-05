@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useState } from "react";
 import { api } from "@/lib/api";
@@ -245,7 +246,7 @@ export default function AuditAIPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {result.query_details.map((query: any, index: number) => (
+                  {result.query_details?.map((query: any, index: number) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                       <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                         {query.query}
