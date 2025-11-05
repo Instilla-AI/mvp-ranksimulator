@@ -39,6 +39,31 @@ class User(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
+class AnalysisJob(db.Model):
+    """Analysis job tracking model"""
+    __tablename__ = 'analysis_jobs'
+    
+    job_id = db.Column(db.String(36), primary_key=True)  # UUID
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    status = db.Column(db.String(20), default='queued')  # queued, processing, completed, error
+    progress = db.Column(db.String(200))
+    error = db.Column(db.Text)
+    result_data = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def to_dict(self):
+        """Convert job to dictionary"""
+        return {
+            'job_id': self.job_id,
+            'status': self.status,
+            'progress': self.progress,
+            'error': self.error,
+            'result': self.result_data,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
 class Analysis(db.Model):
     """Analysis history model"""
     __tablename__ = 'analyses'

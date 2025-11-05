@@ -10,7 +10,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
 import google.generativeai as genai
 from dotenv import load_dotenv
-from models import db, bcrypt, User, Analysis
+from models import db, bcrypt, User, Analysis, AnalysisJob
 from auth import auth_bp
 
 # Load environment variables
@@ -426,17 +426,26 @@ def index():
         }
     })
 
-def process_analysis(job_id, url):
+def process_analysis(job_id, url, user_id):
     """Background task to process URL analysis"""
     try:
         print(f"[Job {job_id}] Starting analysis for: {url}")
-        job_status[job_id] = {"status": "processing", "progress": "Extracting content..."}
+        
+        # Update job in database
+        job = AnalysisJob.query.get(job_id)
+        if job:
+            job.status = "processing"
+            job.progress = "Extracting content..."
+            db.session.commit()
         
         # Step 1: Extract entity and content from URL
         url_insights = get_url_insights_and_content(url)
         
         if url_insights["status"] == "failure":
-            job_status[job_id] = {"status": "error", "error": f"Failed to extract content: {url_insights.get('error', 'Unknown error')}"}
+            if job:
+                job.status = "error"
+                job.error = f"Failed to extract content: {url_insights.get('error', 'Unknown error')}"
+                db.session.commit()
             return
         
         entity = url_insights["entity"]
@@ -444,26 +453,35 @@ def process_analysis(job_id, url):
         content_chunks = url_insights["content_chunks"]
         
         print(f"[Job {job_id}] Entity identified: {entity}, Language: {language}")
-        job_status[job_id] = {"status": "processing", "progress": "Generating synthetic queries..."}
+        if job:
+            job.progress = "Generating synthetic queries..."
+            db.session.commit()
         
         # Step 2: Generate synthetic queries with routing in detected language
         query_result = generate_synthetic_queries(entity, language, mode="complex")
         
         if query_result["status"] == "failure":
-            job_status[job_id] = {"status": "error", "error": f"Failed to generate queries: {query_result.get('error', 'Unknown error')}"}
+            if job:
+                job.status = "error"
+                job.error = f"Failed to generate queries: {query_result.get('error', 'Unknown error')}"
+                db.session.commit()
             return
         
         expanded_queries = query_result["expanded_queries"]
         generation_details = query_result["generation_details"]
         
         print(f"[Job {job_id}] Generated {len(expanded_queries)} queries")
-        job_status[job_id] = {"status": "processing", "progress": "Calculating coverage..."}
+        if job:
+            job.progress = "Calculating coverage..."
+            db.session.commit()
         
         # Step 3: Calculate coverage
         coverage_data = calculate_coverage(expanded_queries, content_chunks)
         
         print(f"[Job {job_id}] Coverage calculated: {coverage_data['coverage_score']:.2f}%")
-        job_status[job_id] = {"status": "processing", "progress": "Generating recommendations..."}
+        if job:
+            job.progress = "Generating recommendations..."
+            db.session.commit()
         
         # Step 4: Generate recommendations
         recommendations = generate_recommendations(coverage_data, entity)
@@ -484,13 +502,19 @@ def process_analysis(job_id, url):
             "timestamp": datetime.datetime.utcnow().isoformat()
         }
         
-        job_results[job_id] = response_data
-        job_status[job_id] = {"status": "completed"}
+        if job:
+            job.status = "completed"
+            job.result_data = response_data
+            db.session.commit()
         print(f"[Job {job_id}] Analysis completed successfully")
         
     except Exception as e:
         print(f"[Job {job_id}] Error: {str(e)}")
-        job_status[job_id] = {"status": "error", "error": str(e)}
+        job = AnalysisJob.query.get(job_id)
+        if job:
+            job.status = "error"
+            job.error = str(e)
+            db.session.commit()
 
 @app.route('/api/analyze', methods=['POST'])
 @jwt_required()
@@ -512,12 +536,20 @@ def analyze():
         
         # Generate unique job ID
         job_id = str(uuid.uuid4())
+        user_id = int(get_jwt_identity())
         
-        # Initialize job status
-        job_status[job_id] = {"status": "queued"}
+        # Create job in database
+        job = AnalysisJob(
+            job_id=job_id,
+            user_id=user_id,
+            url=url,
+            status="queued"
+        )
+        db.session.add(job)
+        db.session.commit()
         
         # Start background thread
-        thread = threading.Thread(target=process_analysis, args=(job_id, url))
+        thread = threading.Thread(target=process_analysis, args=(job_id, url, user_id))
         thread.daemon = True
         thread.start()
         
@@ -536,45 +568,50 @@ def analyze():
 @jwt_required()
 def check_status(job_id):
     """Check the status of an analysis job"""
-    if job_id not in job_status:
+    job = AnalysisJob.query.get(job_id)
+    
+    if not job:
         return jsonify({"error": "Job not found"}), 404
     
-    status_info = job_status[job_id]
-    
     response = {
-        "job_id": job_id,
-        "status": status_info["status"]
+        "job_id": job.job_id,
+        "status": job.status
     }
     
-    if "progress" in status_info:
-        response["progress"] = status_info["progress"]
+    if job.progress:
+        response["progress"] = job.progress
     
-    if "error" in status_info:
-        response["error"] = status_info["error"]
+    if job.error:
+        response["error"] = job.error
     
-    if status_info["status"] == "completed" and job_id in job_results:
-        response["result"] = job_results[job_id]
+    if job.status == "completed" and job.result_data:
+        response["result"] = job.result_data
         
-        # Save to database
+        # Save to history table (only once)
         try:
-            user_id = int(get_jwt_identity())
-            result_data = job_results[job_id]
+            # Check if already saved
+            existing = Analysis.query.filter_by(
+                user_id=job.user_id,
+                url=job.url,
+                created_at=job.created_at
+            ).first()
             
-            analysis = Analysis(
-                user_id=user_id,
-                url=result_data['url'],
-                entity=result_data['entity'],
-                language=result_data.get('language', 'en'),
-                ai_visibility_score=result_data['ai_visibility_score'],
-                total_queries=result_data['coverage_details']['total_queries'],
-                covered_queries=result_data['coverage_details']['covered_queries'],
-                result_data=result_data
-            )
-            
-            db.session.add(analysis)
-            db.session.commit()
+            if not existing:
+                result_data = job.result_data
+                analysis = Analysis(
+                    user_id=job.user_id,
+                    url=result_data['url'],
+                    entity=result_data['entity'],
+                    language=result_data.get('language', 'en'),
+                    ai_visibility_score=result_data['ai_visibility_score'],
+                    total_queries=result_data['coverage_details']['total_queries'],
+                    covered_queries=result_data['coverage_details']['covered_queries'],
+                    result_data=result_data
+                )
+                db.session.add(analysis)
+                db.session.commit()
         except Exception as e:
-            print(f"Error saving analysis to database: {e}")
+            print(f"Error saving analysis to history: {e}")
     
     return jsonify(response)
 
