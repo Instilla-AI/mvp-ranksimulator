@@ -21,8 +21,17 @@ app = Flask(__name__)
 # Configuration
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-jwt-secret-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://localhost/ranksimulator')
+
+# Fix DATABASE_URL for SQLAlchemy (Railway uses postgres:// but SQLAlchemy needs postgresql://)
+database_url = os.getenv('DATABASE_URL', 'postgresql://localhost/ranksimulator')
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Log database connection (hide password)
+db_url_safe = database_url.split('@')[1] if '@' in database_url else database_url
+print(f"[INFO] Connecting to database: ...@{db_url_safe}")
 
 # Initialize extensions
 CORS(app, resources={r"/api/*": {"origins": "*"}})
