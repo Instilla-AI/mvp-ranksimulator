@@ -299,8 +299,9 @@ def calculate_coverage(queries: list, content_chunks: list, threshold: float = 0
                 "query": query_text,
                 "type": query_obj.get("type", ""),
                 "covered": False,
-                "max_similarity": 0.0,
-                "routing_format": query_obj.get("routing_format", ""),
+                "similarity": 0.0,
+                "routing": query_obj.get("routing_format", ""),
+                "format_reason": query_obj.get("format_reason", ""),
                 "user_intent": query_obj.get("user_intent", ""),
                 "reasoning": query_obj.get("reasoning", "")
             })
@@ -321,8 +322,8 @@ def calculate_coverage(queries: list, content_chunks: list, threshold: float = 0
             "query": query_text,
             "type": query_obj.get("type", ""),
             "covered": is_covered,
-            "max_similarity": max_similarity,
-            "routing_format": query_obj.get("routing_format", ""),
+            "similarity": max_similarity,  # Changed from max_similarity to similarity
+            "routing": query_obj.get("routing_format", ""),  # Changed from routing_format to routing
             "format_reason": query_obj.get("format_reason", ""),
             "user_intent": query_obj.get("user_intent", ""),
             "reasoning": query_obj.get("reasoning", "")
