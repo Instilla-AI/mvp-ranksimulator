@@ -20,6 +20,7 @@ export default function EditUserPage() {
 
   useEffect(() => {
     loadUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadUser = async () => {
@@ -84,7 +85,7 @@ export default function EditUserPage() {
           Modifica Utente
         </h1>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          Aggiorna le informazioni dell'utente
+          Aggiorna le informazioni dell&apos;utente
         </p>
       </div>
 

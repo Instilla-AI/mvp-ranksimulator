@@ -41,7 +41,7 @@ export default function AuditAIPage() {
             // Poll again after 2 seconds
             setTimeout(pollStatus, 2000);
           }
-        } catch (err) {
+        } catch {
           // Job not found or backend restarted
           setError('Analysis job lost. Backend may have restarted. Please try again.');
           setLoading(false);
