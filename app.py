@@ -3,7 +3,7 @@ import json
 import re
 import datetime
 import numpy as np
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory
 import google.generativeai as genai
 
 app = Flask(__name__)
@@ -329,40 +329,55 @@ def index():
     """Render the main page"""
     return render_template('index.html')
 
+@app.route('/favicon.ico')
+def favicon():
+    # Return empty response to avoid 404 noise if no favicon present
+    return ('', 204)
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     """Analyze URL for AI visibility"""
     try:
-        data = request.json
-        url = data.get('url')
-        
-        if not url:
-            return jsonify({"error": "URL is required"}), 400
-        
+        # Accept both JSON and form-data
+        data = None
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+        if data is None or not data:
+            # Fallback to form fields
+            data = request.form.to_dict() if request.form else {}
+
+        url = data.get('url') if isinstance(data, dict) else None
+
+        # Validate URL presence and format
+        if not url or not isinstance(url, str) or not url.strip():
+            return jsonify({"error": "URL mancante o non valido"}), 400
+
+        url = url.strip()
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+
         # Step 1: Extract entity and content from URL
         url_insights = get_url_insights_and_content(url)
-        
-        if url_insights["status"] == "failure":
+        if url_insights.get("status") == "failure":
             return jsonify({"error": f"Failed to extract content: {url_insights.get('error', 'Unknown error')}"}), 500
-        
-        entity = url_insights["entity"]
-        content_chunks = url_insights["content_chunks"]
-        
+
+        entity = url_insights.get("entity")
+        content_chunks = url_insights.get("content_chunks", [])
+
         # Step 2: Generate synthetic queries with routing
         query_result = generate_synthetic_queries(entity, mode="complex")
-        
-        if query_result["status"] == "failure":
+        if query_result.get("status") == "failure":
             return jsonify({"error": f"Failed to generate queries: {query_result.get('error', 'Unknown error')}"}), 500
-        
-        expanded_queries = query_result["expanded_queries"]
-        generation_details = query_result["generation_details"]
-        
+
+        expanded_queries = query_result.get("expanded_queries", [])
+        generation_details = query_result.get("generation_details", {})
+
         # Step 3: Calculate coverage
         coverage_data = calculate_coverage(expanded_queries, content_chunks)
-        
+
         # Step 4: Generate recommendations
         recommendations = generate_recommendations(coverage_data, entity)
-        
+
         # Prepare response
         response_data = {
             "url": url,
@@ -378,9 +393,9 @@ def analyze():
             "recommendations": recommendations,
             "timestamp": datetime.datetime.utcnow().isoformat()
         }
-        
+
         return jsonify(response_data)
-        
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
