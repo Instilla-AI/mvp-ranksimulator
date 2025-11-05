@@ -26,8 +26,17 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-jwt-secret-key-
 database_url = os.getenv('DATABASE_URL', 'postgresql://localhost/ranksimulator')
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+# Add SSL parameters for Railway PostgreSQL
+if 'railway' in database_url:
+    database_url += '?sslmode=require'
+
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+}
 
 # Log database connection (hide password)
 db_url_safe = database_url.split('@')[1] if '@' in database_url else database_url
