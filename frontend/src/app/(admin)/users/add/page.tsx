@@ -20,7 +20,14 @@ export default function AddUserPage() {
     setLoading(true);
 
     try {
-      await api.register(formData.email, formData.password, formData.name);
+      // Register user
+      const result = await api.register(formData.email, formData.password, formData.name);
+      
+      // If role is admin, update it (register creates user by default)
+      if (formData.role === 'admin' && result.user) {
+        await api.updateUser(result.user.id, { role: 'admin' });
+      }
+      
       router.push("/users");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create user");
