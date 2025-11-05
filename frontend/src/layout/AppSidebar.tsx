@@ -29,11 +29,6 @@ const navItems: NavItem[] = [
     name: "Utenti",
     path: "/users",
   },
-  {
-    icon: <PieChartIcon />,
-    name: "Test API",
-    path: "/test",
-  },
 ];
 
 const othersItems: NavItem[] = [];
