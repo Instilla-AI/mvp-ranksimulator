@@ -119,7 +119,7 @@ class APIService {
     return this.request('/api/auth/users');
   }
 
-  async updateUser(id: number, data: any) {
+  async updateUser(id: number, data: { name?: string; email?: string; role?: string }) {
     return this.request(`/api/auth/users/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
