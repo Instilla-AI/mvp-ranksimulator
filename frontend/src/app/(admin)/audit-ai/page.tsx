@@ -6,11 +6,7 @@ export default function AuditAIPage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{
-    ai_visibility_score: number;
-    coverage_details: { covered_queries: number; total_queries: number };
-    query_details: Array<{ query: string; type: string; covered: boolean }>;
-  } | null>(null);
+  const [result, setResult] = useState<any>(null);
   const [progress, setProgress] = useState("");
 
   const handleAnalyze = async () => {
@@ -185,6 +181,38 @@ export default function AuditAIPage() {
             </div>
           </div>
 
+          {/* Generation Details */}
+          {result.generation_details && (
+            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+              <h2 className="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
+                Query Generation Details
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Routing Strategy
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {result.generation_details.routing_used || 'Standard routing'}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Reasoning Approach
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {result.generation_details.reasoning_used || 'Standard reasoning'}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                  <strong>Coverage Threshold:</strong> Queries with similarity ≥ 75% are considered covered
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Query Details Table */}
           <div className="rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800">
@@ -203,18 +231,50 @@ export default function AuditAIPage() {
                       Type
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      Routing
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      Reasoning
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      Similarity
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                       Coverage
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {result.query_details.map((query, index: number) => (
+                  {result.query_details.map((query: any, index: number) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                       <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                         {query.query}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                         {query.type}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                        <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900/20 dark:text-purple-400">
+                          {query.routing || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                        <span className="max-w-xs truncate block" title={query.reasoning}>
+                          {query.reasoning || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {query.similarity !== undefined ? (
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            query.similarity >= 0.75
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                              : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                          }`}>
+                            {(query.similarity * 100).toFixed(1)}%
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">N/A</span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <span
