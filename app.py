@@ -45,7 +45,11 @@ print(f"[INFO] Connecting to database: ...@{db_url_safe}")
 # Initialize extensions
 CORS(app, resources={
     r"/*": {
-        "origins": ["https://rare-surprise-production.up.railway.app", "http://localhost:3000"],
+        "origins": [
+            "https://rare-surprise-production.up.railway.app",
+            "https://app.ranksimulator.com",
+            "http://localhost:3000"
+        ],
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
         "expose_headers": ["Content-Type", "Authorization"],
