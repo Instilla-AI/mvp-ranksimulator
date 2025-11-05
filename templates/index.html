@@ -184,6 +184,7 @@
             document.getElementById('analyzeBtn').disabled = true;
 
             try {
+                // Start the analysis job
                 const response = await fetch('/analyze', {
                     method: 'POST',
                     headers: {
@@ -198,17 +199,67 @@
                     throw new Error(data.error || 'Errore durante l\'analisi');
                 }
 
-                // Hide loading, show results
-                document.getElementById('loadingState').classList.add('hidden');
-                displayResults(data);
+                // Get job ID and start polling
+                const jobId = data.job_id;
+                console.log('Analysis job started:', jobId);
+                
+                // Poll for results
+                await pollJobStatus(jobId);
 
             } catch (error) {
                 document.getElementById('loadingState').classList.add('hidden');
                 document.getElementById('errorMessage').textContent = error.message;
                 document.getElementById('errorState').classList.remove('hidden');
-            } finally {
                 document.getElementById('analyzeBtn').disabled = false;
             }
+        }
+
+        async function pollJobStatus(jobId) {
+            const maxAttempts = 120; // 2 minutes max (120 * 1 second)
+            let attempts = 0;
+
+            const poll = async () => {
+                try {
+                    const response = await fetch(`/status/${jobId}`);
+                    const data = await response.json();
+
+                    console.log('Job status:', data.status, data.progress || '');
+
+                    if (data.status === 'completed') {
+                        // Analysis complete, show results
+                        document.getElementById('loadingState').classList.add('hidden');
+                        displayResults(data.result);
+                        document.getElementById('analyzeBtn').disabled = false;
+                        return;
+                    } else if (data.status === 'error') {
+                        throw new Error(data.error || 'Errore durante l\'analisi');
+                    } else if (data.status === 'processing' || data.status === 'queued') {
+                        // Update progress message if available
+                        if (data.progress) {
+                            const loadingText = document.querySelector('#loadingState p');
+                            if (loadingText) {
+                                loadingText.textContent = data.progress;
+                            }
+                        }
+                        
+                        attempts++;
+                        if (attempts < maxAttempts) {
+                            // Poll again after 1 second
+                            setTimeout(poll, 1000);
+                        } else {
+                            throw new Error('Timeout: l\'analisi sta richiedendo troppo tempo');
+                        }
+                    }
+                } catch (error) {
+                    document.getElementById('loadingState').classList.add('hidden');
+                    document.getElementById('errorMessage').textContent = error.message;
+                    document.getElementById('errorState').classList.remove('hidden');
+                    document.getElementById('analyzeBtn').disabled = false;
+                }
+            };
+
+            // Start polling
+            poll();
         }
 
         function displayResults(data) {

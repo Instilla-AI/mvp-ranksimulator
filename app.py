@@ -3,10 +3,16 @@ import json
 import re
 import datetime
 import numpy as np
+import threading
+import uuid
 from flask import Flask, render_template, request, jsonify
 import google.generativeai as genai
 
 app = Flask(__name__)
+
+# In-memory storage for job results (in production, use Redis or database)
+job_results = {}
+job_status = {}
 
 # API Keys
 GEMINI_API_KEY = "AIzaSyDD_lRQ99lz0R_J5_vOspGtF5ITA2DmRHM"
@@ -329,50 +335,43 @@ def index():
     """Render the main page"""
     return render_template('index.html')
 
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    """Analyze URL for AI visibility"""
+def process_analysis(job_id, url):
+    """Background task to process URL analysis"""
     try:
-        # Log incoming request
-        print(f"Received request: {request.method} {request.path}")
-        print(f"Content-Type: {request.content_type}")
-        print(f"Request data: {request.data}")
-        
-        # Get JSON data
-        if not request.is_json:
-            return jsonify({"error": "Content-Type must be application/json"}), 400
-        
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "No JSON data provided"}), 400
-        
-        url = data.get('url')
-        
-        if not url:
-            return jsonify({"error": "URL is required"}), 400
-        
-        print(f"Analyzing URL: {url}")
+        print(f"[Job {job_id}] Starting analysis for: {url}")
+        job_status[job_id] = {"status": "processing", "progress": "Extracting content..."}
         
         # Step 1: Extract entity and content from URL
         url_insights = get_url_insights_and_content(url)
         
         if url_insights["status"] == "failure":
-            return jsonify({"error": f"Failed to extract content: {url_insights.get('error', 'Unknown error')}"}), 500
+            job_status[job_id] = {"status": "error", "error": f"Failed to extract content: {url_insights.get('error', 'Unknown error')}"}
+            return
         
         entity = url_insights["entity"]
         content_chunks = url_insights["content_chunks"]
+        
+        print(f"[Job {job_id}] Entity identified: {entity}")
+        job_status[job_id] = {"status": "processing", "progress": "Generating synthetic queries..."}
         
         # Step 2: Generate synthetic queries with routing
         query_result = generate_synthetic_queries(entity, mode="complex")
         
         if query_result["status"] == "failure":
-            return jsonify({"error": f"Failed to generate queries: {query_result.get('error', 'Unknown error')}"}), 500
+            job_status[job_id] = {"status": "error", "error": f"Failed to generate queries: {query_result.get('error', 'Unknown error')}"}
+            return
         
         expanded_queries = query_result["expanded_queries"]
         generation_details = query_result["generation_details"]
         
+        print(f"[Job {job_id}] Generated {len(expanded_queries)} queries")
+        job_status[job_id] = {"status": "processing", "progress": "Calculating coverage..."}
+        
         # Step 3: Calculate coverage
         coverage_data = calculate_coverage(expanded_queries, content_chunks)
+        
+        print(f"[Job {job_id}] Coverage calculated: {coverage_data['coverage_score']:.2f}%")
+        job_status[job_id] = {"status": "processing", "progress": "Generating recommendations..."}
         
         # Step 4: Generate recommendations
         recommendations = generate_recommendations(coverage_data, entity)
@@ -393,10 +392,76 @@ def analyze():
             "timestamp": datetime.datetime.utcnow().isoformat()
         }
         
-        return jsonify(response_data)
+        job_results[job_id] = response_data
+        job_status[job_id] = {"status": "completed"}
+        print(f"[Job {job_id}] Analysis completed successfully")
+        
+    except Exception as e:
+        print(f"[Job {job_id}] Error: {str(e)}")
+        job_status[job_id] = {"status": "error", "error": str(e)}
+
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    """Start async URL analysis and return job ID"""
+    try:
+        # Get JSON data
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        url = data.get('url')
+        
+        if not url:
+            return jsonify({"error": "URL is required"}), 400
+        
+        # Generate unique job ID
+        job_id = str(uuid.uuid4())
+        
+        # Initialize job status
+        job_status[job_id] = {"status": "queued"}
+        
+        # Start background thread
+        thread = threading.Thread(target=process_analysis, args=(job_id, url))
+        thread.daemon = True
+        thread.start()
+        
+        print(f"Started analysis job {job_id} for URL: {url}")
+        
+        return jsonify({
+            "job_id": job_id,
+            "status": "queued",
+            "message": "Analysis started. Use /status/<job_id> to check progress."
+        }), 202
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/status/<job_id>', methods=['GET'])
+def check_status(job_id):
+    """Check the status of an analysis job"""
+    if job_id not in job_status:
+        return jsonify({"error": "Job not found"}), 404
+    
+    status_info = job_status[job_id]
+    
+    response = {
+        "job_id": job_id,
+        "status": status_info["status"]
+    }
+    
+    if "progress" in status_info:
+        response["progress"] = status_info["progress"]
+    
+    if "error" in status_info:
+        response["error"] = status_info["error"]
+    
+    if status_info["status"] == "completed" and job_id in job_results:
+        response["result"] = job_results[job_id]
+    
+    return jsonify(response)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
