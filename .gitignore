@@ -12,3 +12,5 @@ ENV/
 .env
 .vscode/
 .idea/
+frontend/
+node_modules/

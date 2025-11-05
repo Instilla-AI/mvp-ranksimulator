@@ -5,18 +5,41 @@ import datetime
 import numpy as np
 import threading
 import uuid
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
 import google.generativeai as genai
+from dotenv import load_dotenv
+from models import db, bcrypt, User, Analysis
+from auth import auth_bp
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 
-# In-memory storage for job results (in production, use Redis or database)
+# Configuration
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-jwt-secret-key-change-in-production')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://localhost/ranksimulator')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize extensions
+CORS(app, resources={r"/api/*": {"origins": "*"}})
+db.init_app(app)
+bcrypt.init_app(app)
+jwt = JWTManager(app)
+
+# Register blueprints
+app.register_blueprint(auth_bp)
+
+# In-memory storage for job results
 job_results = {}
 job_status = {}
 
 # API Keys
-GEMINI_API_KEY = "AIzaSyDD_lRQ99lz0R_J5_vOspGtF5ITA2DmRHM"
-OPENAI_API_KEY = "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"
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyDD_lRQ99lz0R_J5_vOspGtF5ITA2DmRHM')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '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')
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -364,8 +387,17 @@ def generate_recommendations(coverage_data: dict, entity: str) -> list:
 
 @app.route('/')
 def index():
-    """Render the main page"""
-    return render_template('index.html')
+    """API root endpoint"""
+    return jsonify({
+        'message': 'Rank Simulator API',
+        'version': '2.0',
+        'endpoints': {
+            'auth': '/api/auth',
+            'analyze': '/api/analyze',
+            'status': '/api/status/<job_id>',
+            'history': '/api/history'
+        }
+    })
 
 def process_analysis(job_id, url):
     """Background task to process URL analysis"""
@@ -433,7 +465,8 @@ def process_analysis(job_id, url):
         print(f"[Job {job_id}] Error: {str(e)}")
         job_status[job_id] = {"status": "error", "error": str(e)}
 
-@app.route('/analyze', methods=['POST'])
+@app.route('/api/analyze', methods=['POST'])
+@jwt_required()
 def analyze():
     """Start async URL analysis and return job ID"""
     try:
@@ -472,7 +505,8 @@ def analyze():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/status/<job_id>', methods=['GET'])
+@app.route('/api/status/<job_id>', methods=['GET'])
+@jwt_required()
 def check_status(job_id):
     """Check the status of an analysis job"""
     if job_id not in job_status:
@@ -493,8 +527,113 @@ def check_status(job_id):
     
     if status_info["status"] == "completed" and job_id in job_results:
         response["result"] = job_results[job_id]
+        
+        # Save to database
+        try:
+            user_id = get_jwt_identity()
+            result_data = job_results[job_id]
+            
+            analysis = Analysis(
+                user_id=user_id,
+                url=result_data['url'],
+                entity=result_data['entity'],
+                language=result_data.get('language', 'en'),
+                ai_visibility_score=result_data['ai_visibility_score'],
+                total_queries=result_data['coverage_details']['total_queries'],
+                covered_queries=result_data['coverage_details']['covered_queries'],
+                result_data=result_data
+            )
+            
+            db.session.add(analysis)
+            db.session.commit()
+        except Exception as e:
+            print(f"Error saving analysis to database: {e}")
     
     return jsonify(response)
+
+@app.route('/api/history', methods=['GET'])
+@jwt_required()
+def get_history():
+    """Get user's analysis history"""
+    try:
+        user_id = get_jwt_identity()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        analyses = Analysis.query.filter_by(user_id=user_id)\
+            .order_by(Analysis.created_at.desc())\
+            .paginate(page=page, per_page=per_page, error_out=False)
+        
+        return jsonify({
+            'analyses': [a.to_dict() for a in analyses.items],
+            'total': analyses.total,
+            'page': page,
+            'per_page': per_page,
+            'pages': analyses.pages
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/history/<int:analysis_id>', methods=['GET'])
+@jwt_required()
+def get_analysis(analysis_id):
+    """Get specific analysis with full data"""
+    try:
+        user_id = get_jwt_identity()
+        analysis = Analysis.query.filter_by(id=analysis_id, user_id=user_id).first()
+        
+        if not analysis:
+            return jsonify({'error': 'Analysis not found'}), 404
+        
+        return jsonify({'analysis': analysis.to_dict_full()}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/history/<int:analysis_id>', methods=['DELETE'])
+@jwt_required()
+def delete_analysis(analysis_id):
+    """Delete specific analysis"""
+    try:
+        user_id = get_jwt_identity()
+        analysis = Analysis.query.filter_by(id=analysis_id, user_id=user_id).first()
+        
+        if not analysis:
+            return jsonify({'error': 'Analysis not found'}), 404
+        
+        db.session.delete(analysis)
+        db.session.commit()
+        
+        return jsonify({'message': 'Analysis deleted successfully'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# Database initialization
+@app.cli.command()
+def init_db():
+    """Initialize the database"""
+    db.create_all()
+    print('Database initialized!')
+
+@app.cli.command()
+def seed_admin():
+    """Create admin user"""
+    admin = User.query.filter_by(email='ciccioragusa@gmail.com').first()
+    if not admin:
+        admin = User(
+            email='ciccioragusa@gmail.com',
+            name='Admin',
+            role='admin'
+        )
+        admin.set_password('12345Aa!')
+        db.session.add(admin)
+        db.session.commit()
+        print('Admin user created: ciccioragusa@gmail.com')
+    else:
+        print('Admin user already exists')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
