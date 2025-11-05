@@ -635,6 +635,36 @@ def seed_admin():
     else:
         print('Admin user already exists')
 
+# Initialize database on startup
+def init_db_on_startup():
+    """Initialize database tables and create admin user if needed"""
+    with app.app_context():
+        try:
+            print("Initializing database...")
+            db.create_all()
+            print("✅ Database tables created/verified!")
+            
+            # Create admin user if not exists
+            admin = User.query.filter_by(email='ciccioragusa@gmail.com').first()
+            if not admin:
+                print("Creating admin user...")
+                admin = User(
+                    email='ciccioragusa@gmail.com',
+                    name='Admin',
+                    role='admin'
+                )
+                admin.set_password('12345Aa!')
+                db.session.add(admin)
+                db.session.commit()
+                print('✅ Admin user created: ciccioragusa@gmail.com')
+            else:
+                print('ℹ️  Admin user already exists')
+        except Exception as e:
+            print(f"⚠️  Database initialization error: {e}")
+
+# Run initialization on import (when gunicorn loads the app)
+init_db_on_startup()
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
