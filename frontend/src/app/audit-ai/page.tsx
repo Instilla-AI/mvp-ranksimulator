@@ -5,7 +5,11 @@ import { api } from "@/lib/api";
 export default function AuditAIPage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{
+    ai_visibility_score: number;
+    coverage_details: { covered_queries: number; total_queries: number };
+    query_details: Array<{ query: string; type: string; covered: boolean }>;
+  } | null>(null);
   const [error, setError] = useState("");
 
   const handleAnalyze = async () => {
@@ -39,8 +43,8 @@ export default function AuditAIPage() {
       };
       
       pollStatus();
-    } catch (err: any) {
-      setError(err.message || 'Failed to start analysis');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start analysis');
       setLoading(false);
     }
   };
@@ -170,7 +174,7 @@ export default function AuditAIPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {result.query_details.map((query: any, index: number) => (
+                  {result.query_details.map((query, index: number) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                       <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                         {query.query}

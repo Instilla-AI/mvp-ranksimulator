@@ -20,8 +20,8 @@ export default function SignInForm() {
     try {
       await api.login(email, password);
       router.push("/audit-ai");
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }
