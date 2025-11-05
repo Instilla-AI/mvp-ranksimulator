@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mvp-ranksimulator-production.up.railway.app';
 
 class APIService {
   private getToken(): string | null {
@@ -19,13 +19,17 @@ class APIService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const url = `${API_URL}${endpoint}`;
+    console.log('API Request:', { url, method: options.method || 'GET', hasToken: !!token });
+
+    const response = await fetch(url, {
       ...options,
       headers,
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      console.error('API Error:', { status: response.status, error });
       throw new Error(error.error || `HTTP ${response.status}`);
     }
 
