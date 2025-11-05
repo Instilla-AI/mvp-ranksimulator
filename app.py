@@ -34,7 +34,15 @@ db_url_safe = database_url.split('@')[1] if '@' in database_url else database_ur
 print(f"[INFO] Connecting to database: ...@{db_url_safe}")
 
 # Initialize extensions
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app, resources={
+    r"/*": {
+        "origins": ["https://rare-surprise-production.up.railway.app", "http://localhost:3000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "expose_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 db.init_app(app)
 bcrypt.init_app(app)
 jwt = JWTManager(app)
