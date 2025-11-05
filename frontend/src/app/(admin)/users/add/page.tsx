@@ -20,8 +20,19 @@ export default function AddUserPage() {
     setLoading(true);
 
     try {
-      // Register user
+      // Save current admin token
+      const adminToken = localStorage.getItem('token');
+      const adminUser = localStorage.getItem('user');
+      
+      // Register user (this will set the new user's token)
       const result = await api.register(formData.email, formData.password, formData.name);
+      
+      // Restore admin token immediately
+      if (adminToken && adminUser) {
+        localStorage.setItem('token', adminToken);
+        localStorage.setItem('user', adminUser);
+        document.cookie = `token=${adminToken}; path=/; max-age=86400; SameSite=Lax`;
+      }
       
       // If role is admin, update it (register creates user by default)
       if (formData.role === 'admin' && result.user) {
