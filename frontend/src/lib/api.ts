@@ -43,6 +43,8 @@ class APIService {
       if (typeof window !== 'undefined') {
         localStorage.setItem('token', data.access_token);
         localStorage.setItem('user', JSON.stringify(data.user));
+        // Set cookie for middleware
+        document.cookie = `token=${data.access_token}; path=/; max-age=86400; SameSite=Lax`;
       }
     }
     
@@ -69,6 +71,10 @@ class APIService {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      // Remove cookie
+      document.cookie = 'token=; path=/; max-age=0';
+      // Redirect to signin
+      window.location.href = '/signin';
     }
   }
 
