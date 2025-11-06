@@ -46,19 +46,20 @@ db_url_safe = database_url.split('@')[1] if '@' in database_url else database_ur
 print(f"[INFO] Connecting to database: ...@{db_url_safe}")
 
 # Initialize extensions
-CORS(app, resources={
-    r"/*": {
-        "origins": [
-            "https://rare-surprise-production.up.railway.app",
-            "https://app.ranksimulator.com",
-            "http://localhost:3000"
-        ],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "expose_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
-    }
-})
+CORS(app, 
+     origins=[
+         "https://rare-surprise-production.up.railway.app",
+         "https://app.ranksimulator.com",
+         "http://localhost:3000"
+     ],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization"],
+     expose_headers=["Content-Type", "Authorization"],
+     supports_credentials=True,
+     send_wildcard=False,
+     always_send=True,
+     max_age=3600
+)
 db.init_app(app)
 bcrypt.init_app(app)
 jwt = JWTManager(app)
