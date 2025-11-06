@@ -71,11 +71,10 @@ job_results = {}
 job_status = {}
 
 # API Keys - NEVER hardcode, always use environment variables
-# Gemini configuration - use new key from environment
+# Gemini configuration - MUST be set in environment variables
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if not GEMINI_API_KEY:
-    print("[WARNING] GEMINI_API_KEY not set - using fallback")
-    GEMINI_API_KEY = "AIzaSyCBUfpJJmB_4aS5Pp71USIOoXfMnuUqNR8"  # Fallback key
+    raise ValueError("GEMINI_API_KEY environment variable is required. Set it in Railway dashboard.")
     
 genai.configure(api_key=GEMINI_API_KEY)
 print(f"[INFO] Gemini API configured")
