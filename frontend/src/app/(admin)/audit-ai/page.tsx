@@ -219,7 +219,7 @@ export default function AuditAIPage() {
               </div>
               <div className="mt-4 rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
                 <p className="text-sm text-blue-800 dark:text-blue-300">
-                  <strong>Coverage Threshold:</strong> Queries with similarity ≥ 75% are considered covered
+                  <strong>Coverage Threshold:</strong> Queries with similarity ≥ 65% are considered covered
                 </p>
               </div>
             </div>
@@ -286,7 +286,7 @@ export default function AuditAIPage() {
                         <td className="px-6 py-4 text-sm">
                           {query.similarity !== undefined ? (
                             <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              query.similarity >= 0.75
+                              query.similarity >= 0.65
                                 ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                                 : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
                             }`}>

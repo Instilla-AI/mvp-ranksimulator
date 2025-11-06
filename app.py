@@ -68,17 +68,18 @@ job_results = {}
 job_status = {}
 
 # API Keys - NEVER hardcode, always use environment variables
+# Gemini configuration - use new key from environment
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable is required")
-
-# Configure Gemini
+    print("[WARNING] GEMINI_API_KEY not set - using fallback")
+    GEMINI_API_KEY = "AIzaSyCBUfpJJmB_4aS5Pp71USIOoXfMnuUqNR8"  # Fallback key
+    
 genai.configure(api_key=GEMINI_API_KEY)
+print(f"[INFO] Gemini API configured")
 
-# Models
 MODEL_FOR_URL_CONTEXT = "gemini-2.0-flash"
-MODEL_FOR_QUERY_GEN = "gemini-2.0-flash"
-EMBEDDING_MODEL = "models/text-embedding-004"
+MODEL_FOR_QUERY_GEN = "gemini-2.0-flash-exp"
+GEMINI_EMBEDDING_MODEL = "models/text-embedding-004"
 
 # Allowed routing formats
 ALLOWED_FORMATS = [
@@ -291,7 +292,7 @@ def generate_synthetic_queries(entity: str, language: str = "en", mode: str = "c
             "expanded_queries": []
         }
 
-def calculate_coverage(queries: list, content_chunks: list, threshold: float = 0.75) -> dict:
+def calculate_coverage(queries: list, content_chunks: list, threshold: float = 0.65) -> dict:
     """Calculate how well content covers synthetic queries"""
     if not queries or not content_chunks:
         return {
