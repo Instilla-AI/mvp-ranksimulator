@@ -11,6 +11,7 @@ from typing import List, Dict, Tuple
 import numpy as np
 import dspy
 import google.generativeai as genai
+from sklearn.cluster import AgglomerativeClustering
 
 # Constants
 MIN_QUERIES_SIMPLE = 10
@@ -175,7 +176,7 @@ Return ONLY the JSON array of strings, nothing else."""
 # ============================================================================
 
 def chunk_text(text, size=512, overlap=50):
-    """Mechanical chunking by words"""
+    """Mechanical chunking by words (fallback)"""
     sents = re.split(r'(?<=[.!?])\s+', text)
     chunks = []
     curr = []
@@ -197,6 +198,89 @@ def chunk_text(text, size=512, overlap=50):
         chunks.append(' '.join(curr))
     
     return chunks
+
+
+def semantic_chunk_text(text, analyzer, target_chunk_words=400):
+    """Semantic clustering chunking from notebook"""
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+    
+    if len(sentences) < 5:
+        return [text]
+    
+    print(f'[RankSimulator] Semantic chunking: {len(sentences)} sentences')
+    
+    sentence_lengths = [len(s.split()) for s in sentences]
+    total_words = sum(sentence_lengths)
+    estimated_chunks = max(3, int(total_words / target_chunk_words))
+    
+    print(f'[RankSimulator] Target: ~{estimated_chunks} chunks of ~{target_chunk_words} words')
+    
+    try:
+        # Generate sentence embeddings
+        sentence_embeddings = analyzer._embed(sentences)
+        
+        # Cluster sentences
+        clustering = AgglomerativeClustering(
+            n_clusters=estimated_chunks,
+            metric='cosine',
+            linkage='average'
+        )
+        
+        labels = clustering.fit_predict(sentence_embeddings)
+        n_clusters = len(set(labels))
+        
+        print(f'[RankSimulator] Created {n_clusters} semantic clusters')
+        
+        # Group sentences by cluster
+        sentence_data = [(idx, label, sentences[idx], sentence_lengths[idx])
+                         for idx, label in enumerate(labels)]
+        sentence_data.sort(key=lambda x: (x[1], x[0]))
+        
+        semantic_chunks = []
+        current_cluster = None
+        current_chunk_sentences = []
+        current_chunk_words = 0
+        
+        for idx, label, sentence, word_count in sentence_data:
+            if (current_cluster != label and current_chunk_sentences) or \
+               (current_chunk_words + word_count > target_chunk_words * 1.5):
+                semantic_chunks.append(' '.join(current_chunk_sentences))
+                current_chunk_sentences = []
+                current_chunk_words = 0
+            
+            current_cluster = label
+            current_chunk_sentences.append(sentence)
+            current_chunk_words += word_count
+        
+        if current_chunk_sentences:
+            semantic_chunks.append(' '.join(current_chunk_sentences))
+        
+        # Merge small chunks
+        final_chunks = []
+        i = 0
+        while i < len(semantic_chunks):
+            chunk = semantic_chunks[i]
+            chunk_words = len(chunk.split())
+            
+            if chunk_words < target_chunk_words * 0.3 and i < len(semantic_chunks) - 1:
+                merged = chunk + ' ' + semantic_chunks[i + 1]
+                final_chunks.append(merged)
+                i += 2
+            else:
+                final_chunks.append(chunk)
+                i += 1
+        
+        print(f'[RankSimulator] Created {len(final_chunks)} semantic chunks')
+        for i, chunk in enumerate(final_chunks):
+            word_count = len(chunk.split())
+            print(f'[RankSimulator]   Chunk {i+1}: {word_count} words')
+        
+        return final_chunks
+        
+    except Exception as e:
+        print(f'[RankSimulator] Semantic chunking failed: {e}, using mechanical')
+        return chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
 
 
 # ============================================================================
@@ -423,10 +507,10 @@ Return JSON:
         
         print(f'[RankSimulator] {len(queries)} queries generated and enriched')
         
-        # Chunking
-        print('[RankSimulator] Chunking content...')
-        chunks = chunk_text(content_data['content'], CHUNK_SIZE, CHUNK_OVERLAP)
-        print(f'[RankSimulator] {len(chunks)} chunks created')
+        # Chunking - use semantic chunking
+        print('[RankSimulator] Chunking content with semantic clustering...')
+        chunks = semantic_chunk_text(content_data['content'], self, target_chunk_words=400)
+        print(f'[RankSimulator] {len(chunks)} semantic chunks created')
         
         # Embeddings
         print('[RankSimulator] Generating embeddings...')
