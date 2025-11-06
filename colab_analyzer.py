@@ -213,8 +213,15 @@ class ColabAnalyzer:
         # Setup DSPy
         os.environ['GOOGLE_API_KEY'] = gemini_key
         try:
-            dspy_lm = dspy.LM(f'gemini/{GEMINI_MODEL}', api_key=gemini_key, max_tokens=2000, temperature=0.7)
-            dspy.settings.configure(lm=dspy_lm)
+            # Try new DSPy API first
+            try:
+                from dspy import Google
+                dspy_lm = Google(model=GEMINI_MODEL, api_key=gemini_key)
+            except:
+                # Fallback to configure
+                import dspy
+                dspy.configure(lm=f'google/{GEMINI_MODEL}')
+            
             self.query_generator = dspy.ChainOfThought(QueryFanOutWithFacets)
             print('[ColabAnalyzer] DSPy configured')
         except Exception as e:
@@ -225,7 +232,7 @@ class ColabAnalyzer:
     
     def _generate_queries_fallback(self, entity_name, num_queries):
         """Fallback: Direct Gemini call if DSPy fails"""
-        print('[ColabAnalyzer] Using direct Gemini fallback...')
+        print(f'[ColabAnalyzer] ⚠️ Using direct Gemini fallback for {entity_name}...')
         
         prompt = f"""Generate {num_queries} specific search queries about: {entity_name}
 
