@@ -521,7 +521,6 @@ def process_analysis(job_id, url, user_id):
             result = analyzer.analyze(
                 url=url,
                 content_data=content_data,
-                mode='AI Mode (complex)',
                 threshold=0.65
             )
             
@@ -552,18 +551,19 @@ def process_analysis(job_id, url, user_id):
                 },
                 "generation_details": {
                     "facets_reasoning": result['query_fanout']['facets_reasoning'],
-                    "search_mode": result['query_fanout']['search_mode'],
-                    "routing_used": "DSPy with Facets",
-                    "reasoning_used": "ChainOfThought"
+                    "routing_used": "DSPy with Facets + Deterministic Post-Processing",
+                    "reasoning_used": "ChainOfThought + Rule-Based Enrichment"
                 },
                 "query_details": [
                     {
                         "query": qd['query'],
-                        "type": "technical",  # Could be enhanced
+                        "type": qd.get('type', 'unknown'),
                         "covered": qd['covered'],
                         "similarity": qd['max_similarity'],
-                        "routing": "web_article",  # Could be enhanced
-                        "reasoning": f"Generated via facets reasoning for {result['entity']['entity_name']}",
+                        "routing": qd.get('routing_format', 'unknown'),
+                        "format_reason": qd.get('format_reason', ''),
+                        "user_intent": qd.get('user_intent', ''),
+                        "reasoning": qd.get('reasoning', ''),
                         "best_chunk": qd.get('best_chunk', '')
                     }
                     for qd in result['query_details']
