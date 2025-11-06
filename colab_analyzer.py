@@ -92,7 +92,7 @@ def get_reasoning_by_category(query: str) -> str:
         return reasoning_map['optimization']
     elif any(w in q for w in ['roi', 'pricing', 'cost', 'budget', 'investment', 'services']):
         return reasoning_map['business']
-    elif any(w in q for word in ['automate', 'script', 'code', 'api', 'python', 'javascript']):
+    elif any(w in q for w in ['automate', 'script', 'code', 'api', 'python', 'javascript']):
         return reasoning_map['automation']
     elif any(w in q for w in ['troubleshoot', 'fix', 'error', 'problem', 'issue', 'debug']):
         return reasoning_map['troubleshooting']
@@ -216,9 +216,9 @@ class RankSimulatorAnalyzer:
             try:
                 from dspy import Google
                 dspy_lm = Google(model=GEMINI_MODEL, api_key=gemini_key)
+                dspy.settings.configure(lm=dspy_lm)
             except:
                 # Fallback to configure
-                import dspy
                 dspy.configure(lm=f'google/{GEMINI_MODEL}')
             
             self.query_generator = dspy.ChainOfThought(QueryFanOutWithFacets)
