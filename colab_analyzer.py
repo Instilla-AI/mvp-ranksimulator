@@ -223,11 +223,55 @@ class ColabAnalyzer:
         
         print(f'[ColabAnalyzer] Ready | LLM: {self.model} | Embeddings: {GEMINI_EMBEDDING_MODEL}')
     
+    def _generate_queries_fallback(self, entity_name, num_queries):
+        """Fallback: Direct Gemini call if DSPy fails"""
+        print('[ColabAnalyzer] Using direct Gemini fallback...')
+        
+        prompt = f"""Generate {num_queries} specific search queries about: {entity_name}
+
+Return ONLY a JSON array of query strings:
+["query 1", "query 2", "query 3", ...]
+
+Make queries diverse:
+- 2-3 basic (what is, why, introduction)
+- 10-12 technical (how to, tools, implementation, checklist)
+- 4 advanced (best practices, optimization, troubleshooting)
+- 4 business (pricing, ROI, comparison, services)
+
+Return ONLY the JSON array."""
+
+        try:
+            model = genai.GenerativeModel(self.model)
+            response = model.generate_content(prompt)
+            raw = response.text.strip()
+            
+            # Clean and parse
+            raw = re.sub(r'```json\s*', '', raw)
+            raw = re.sub(r'```\s*', '', raw)
+            raw = raw.strip()
+            
+            if '[' in raw and ']' in raw:
+                start = raw.index('[')
+                end = raw.rindex(']') + 1
+                parsed = json.loads(raw[start:end])
+                
+                if isinstance(parsed, list):
+                    query_strings = [str(q).strip() for q in parsed if q][:num_queries]
+                    print(f'[ColabAnalyzer] Fallback generated {len(query_strings)} queries')
+                    
+                    # Enrich
+                    enriched = [enrich_query(q) for q in query_strings]
+                    return enriched, "Direct Gemini generation (fallback)"
+        except Exception as e:
+            print(f'[ColabAnalyzer] Fallback failed: {e}')
+        
+        return [], "Fallback failed"
+    
     def _generate_queries(self, entity_name, num_queries):
         """Generate query strings via LLM, then enrich with post-processing"""
         if not self.query_generator:
-            print('[ColabAnalyzer] DSPy not available')
-            return [], "DSPy not configured"
+            print('[ColabAnalyzer] DSPy not available, using fallback')
+            return self._generate_queries_fallback(entity_name, num_queries)
         
         current_date = datetime.datetime.now().strftime("%B %d, %Y")
         
@@ -287,8 +331,10 @@ class ColabAnalyzer:
                     print(f'[ColabAnalyzer] Extracted {len(query_strings)} queries')
             
             if not query_strings:
-                print('[ColabAnalyzer] No queries parsed')
-                return [], reasoning
+                print('[ColabAnalyzer] No queries parsed from DSPy output')
+                print(f'[ColabAnalyzer] Raw output was: {raw[:200]}...')
+                print('[ColabAnalyzer] Trying fallback method...')
+                return self._generate_queries_fallback(entity_name, num_queries)
             
             # POST-PROCESSING: Enrich each query with metadata
             print(f'[ColabAnalyzer] Enriching {len(query_strings)} queries...')
