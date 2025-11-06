@@ -452,7 +452,6 @@ def index():
 def extract_content_from_url(url):
     """
     Extract content from URL using BeautifulSoup
-    Exact copy from Colab
     """
     try:
         r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=15)
@@ -488,11 +487,11 @@ def extract_content_from_url(url):
 
 def process_analysis(job_id, url, user_id):
     """
-    Background task using EXACT Colab logic
+    Background task for AI Visibility Analysis
     """
     with app.app_context():
         try:
-            print(f"[Job {job_id}] Starting Colab-based analysis for: {url}")
+            print(f"[Job {job_id}] Starting AI Visibility analysis for: {url}")
             
             # Update job in database
             job = AnalysisJob.query.get(job_id)
@@ -501,7 +500,7 @@ def process_analysis(job_id, url, user_id):
                 job.progress = "Extracting content..."
                 db.session.commit()
             
-            # Step 1: Extract content (Colab method)
+            # Step 1: Extract content
             content_data = extract_content_from_url(url)
             
             if not content_data['success']:
@@ -513,10 +512,10 @@ def process_analysis(job_id, url, user_id):
             
             print(f"[Job {job_id}] Content extracted: {content_data['word_count']} words")
             if job:
-                job.progress = "Analyzing with Colab logic..."
+                job.progress = "Analyzing with RankSimulator AI..."
                 db.session.commit()
             
-            # Step 2: Use Colab Analyzer (DSPy + Facets + Chunk Usage)
+            # Step 2: Use RankSimulator Analyzer (DSPy + Facets + Chunk Usage)
             analyzer = create_colab_analyzer(GEMINI_API_KEY)
             result = analyzer.analyze(
                 url=url,
@@ -539,7 +538,7 @@ def process_analysis(job_id, url, user_id):
             # Step 3: Generate recommendations
             recommendations = generate_recommendations_from_colab_result(result)
             
-            # Prepare response with Colab structure
+            # Prepare response
             response_data = {
                 "url": url,
                 "entity": result['entity']['entity_name'],
@@ -578,7 +577,7 @@ def process_analysis(job_id, url, user_id):
                 job.status = "completed"
                 job.result_data = response_data
                 db.session.commit()
-            print(f"[Job {job_id}] Colab analysis completed successfully")
+            print(f"[Job {job_id}] Analysis completed successfully")
             
         except Exception as e:
             print(f"[Job {job_id}] Error: {str(e)}")
@@ -592,7 +591,7 @@ def process_analysis(job_id, url, user_id):
 
 
 def generate_recommendations_from_colab_result(result):
-    """Generate recommendations from Colab analysis result"""
+    """Generate recommendations from analysis result"""
     recommendations = []
     
     # Identify gaps

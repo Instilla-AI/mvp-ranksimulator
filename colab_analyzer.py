@@ -1,7 +1,6 @@
 """
-AI Visibility Analyzer - NEW APPROACH
+RankSimulator AI Visibility Analyzer
 LLM generates query strings only, deterministic post-processing adds metadata
-Based on AI_Visibility_Analyzer.ipynb (latest version)
 """
 
 import os
@@ -204,9 +203,9 @@ def chunk_text(text, size=512, overlap=50):
 # GEMINI ANALYZER
 # ============================================================================
 
-class ColabAnalyzer:
+class RankSimulatorAnalyzer:
     def __init__(self, gemini_key):
-        print('[ColabAnalyzer] Initializing...')
+        print('[RankSimulator] Initializing AI Visibility Analyzer...')
         genai.configure(api_key=gemini_key)
         self.model = GEMINI_MODEL
         
@@ -223,16 +222,16 @@ class ColabAnalyzer:
                 dspy.configure(lm=f'google/{GEMINI_MODEL}')
             
             self.query_generator = dspy.ChainOfThought(QueryFanOutWithFacets)
-            print('[ColabAnalyzer] DSPy configured')
+            print('[RankSimulator] DSPy configured successfully')
         except Exception as e:
-            print(f'[ColabAnalyzer] DSPy setup failed: {e}')
+            print(f'[RankSimulator] DSPy setup failed: {e}')
             self.query_generator = None
         
-        print(f'[ColabAnalyzer] Ready | LLM: {self.model} | Embeddings: {GEMINI_EMBEDDING_MODEL}')
+        print(f'[RankSimulator] Ready | LLM: {self.model} | Embeddings: {GEMINI_EMBEDDING_MODEL}')
     
     def _generate_queries_fallback(self, entity_name, num_queries):
         """Fallback: Direct Gemini call if DSPy fails"""
-        print(f'[ColabAnalyzer] ⚠️ Using direct Gemini fallback for {entity_name}...')
+        print(f'[RankSimulator] ⚠️ Using direct Gemini fallback for {entity_name}...')
         
         prompt = f"""Generate {num_queries} specific search queries about: {entity_name}
 
@@ -264,20 +263,20 @@ Return ONLY the JSON array."""
                 
                 if isinstance(parsed, list):
                     query_strings = [str(q).strip() for q in parsed if q][:num_queries]
-                    print(f'[ColabAnalyzer] Fallback generated {len(query_strings)} queries')
+                    print(f'[RankSimulator] Fallback generated {len(query_strings)} queries')
                     
                     # Enrich
                     enriched = [enrich_query(q) for q in query_strings]
                     return enriched, "Direct Gemini generation (fallback)"
         except Exception as e:
-            print(f'[ColabAnalyzer] Fallback failed: {e}')
+            print(f'[RankSimulator] Fallback failed: {e}')
         
         return [], "Fallback failed"
     
     def _generate_queries(self, entity_name, num_queries):
         """Generate query strings via LLM, then enrich with post-processing"""
         if not self.query_generator:
-            print('[ColabAnalyzer] DSPy not available, using fallback')
+            print('[RankSimulator] DSPy not available, using fallback')
             return self._generate_queries_fallback(entity_name, num_queries)
         
         current_date = datetime.datetime.now().strftime("%B %d, %Y")
@@ -310,13 +309,13 @@ Return ONLY the JSON array."""
                     
                     if isinstance(parsed, list):
                         query_strings = [str(q).strip() for q in parsed if q]
-                        print(f'[ColabAnalyzer] Parsed {len(query_strings)} query strings')
+                        print(f'[RankSimulator] Parsed {len(query_strings)} query strings')
                 except Exception as e:
-                    print(f'[ColabAnalyzer] JSON parse error: {str(e)[:80]}')
+                    print(f'[RankSimulator] JSON parse error: {str(e)[:80]}')
             
             # Fallback: line by line
             if not query_strings:
-                print('[ColabAnalyzer] Parsing line-by-line...')
+                print('[RankSimulator] Parsing line-by-line...')
                 lines = raw.split('\n')
                 for line in lines:
                     line = line.strip()
@@ -335,28 +334,28 @@ Return ONLY the JSON array."""
                         query_strings.append(line)
                 
                 if query_strings:
-                    print(f'[ColabAnalyzer] Extracted {len(query_strings)} queries')
+                    print(f'[RankSimulator] Extracted {len(query_strings)} queries')
             
             if not query_strings:
-                print('[ColabAnalyzer] No queries parsed from DSPy output')
-                print(f'[ColabAnalyzer] Raw output was: {raw[:200]}...')
-                print('[ColabAnalyzer] Trying fallback method...')
+                print('[RankSimulator] No queries parsed from DSPy output')
+                print(f'[RankSimulator] Raw output was: {raw[:200]}...')
+                print('[RankSimulator] Trying fallback method...')
                 return self._generate_queries_fallback(entity_name, num_queries)
             
             # POST-PROCESSING: Enrich each query with metadata
-            print(f'[ColabAnalyzer] Enriching {len(query_strings)} queries...')
+            print(f'[RankSimulator] Enriching {len(query_strings)} queries...')
             enriched_queries = []
             
             for q_text in query_strings[:num_queries]:
                 enriched = enrich_query(q_text)
                 enriched_queries.append(enriched)
             
-            print(f'[ColabAnalyzer] {len(enriched_queries)} queries enriched with routing/reasoning/intent')
+            print(f'[RankSimulator] {len(enriched_queries)} queries enriched with routing/reasoning/intent')
             
             return enriched_queries, reasoning
         
         except Exception as e:
-            print(f'[ColabAnalyzer] Generation error: {e}')
+            print(f'[RankSimulator] Generation error: {e}')
             import traceback
             traceback.print_exc()
             return [], f"Error: {e}"
@@ -396,35 +395,35 @@ Return JSON:
     
     def analyze(self, url, content_data, threshold=0.65):
         """Full analysis with enriched queries"""
-        print(f'[ColabAnalyzer] Starting analysis for: {url}')
+        print(f'[RankSimulator] Starting analysis for: {url}')
         
         # Extract entity
-        print('[ColabAnalyzer] Extracting entity...')
+        print('[RankSimulator] Extracting entity...')
         ed = self._extract_entity(content_data['title'], content_data['content'])
-        print(f'[ColabAnalyzer] Entity: {ed["entity_name"]}')
+        print(f'[RankSimulator] Entity: {ed["entity_name"]}')
         
         # Generate queries
-        print('[ColabAnalyzer] Generating queries...')
+        print('[RankSimulator] Generating queries...')
         queries, reasoning = self._generate_queries(ed["entity_name"], MIN_QUERIES_COMPLEX)
         
         if not queries:
-            print('[ColabAnalyzer] No queries generated')
+            print('[RankSimulator] No queries generated')
             return {'success': False, 'error': 'No queries generated', 'url': url}
         
-        print(f'[ColabAnalyzer] {len(queries)} queries generated and enriched')
+        print(f'[RankSimulator] {len(queries)} queries generated and enriched')
         
         # Chunking
-        print('[ColabAnalyzer] Chunking content...')
+        print('[RankSimulator] Chunking content...')
         chunks = chunk_text(content_data['content'], CHUNK_SIZE, CHUNK_OVERLAP)
-        print(f'[ColabAnalyzer] {len(chunks)} chunks created')
+        print(f'[RankSimulator] {len(chunks)} chunks created')
         
         # Embeddings
-        print('[ColabAnalyzer] Generating embeddings...')
+        print('[RankSimulator] Generating embeddings...')
         chunk_emb = self._embed(chunks)
-        print('[ColabAnalyzer] Chunks encoded')
+        print('[RankSimulator] Chunks encoded')
         
         # Similarity scoring
-        print('[ColabAnalyzer] Calculating similarity...')
+        print('[RankSimulator] Calculating similarity...')
         results = []
         covered = 0
         chunk_usage = {}
@@ -460,14 +459,14 @@ Return JSON:
                 'covered': cov
             })
             
-            print(f'[ColabAnalyzer] {"✅" if cov else "❌"} {i}. {qt[:40]}... {ms:.3f}')
+            print(f'[RankSimulator] {"✅" if cov else "❌"} {i}. {qt[:40]}... {ms:.3f}')
         
         total = len(results)
         score = (covered / total * 100) if total else 0
         
         unused_chunks = set(range(len(chunks))) - set(chunk_usage.keys())
         
-        print(f'[ColabAnalyzer] Score: {score:.2f}% ({covered}/{total})')
+        print(f'[RankSimulator] Score: {score:.2f}% ({covered}/{total})')
         
         return {
             'success': True,
@@ -495,4 +494,4 @@ Return JSON:
 
 def create_colab_analyzer(gemini_key):
     """Factory function to create analyzer"""
-    return ColabAnalyzer(gemini_key)
+    return RankSimulatorAnalyzer(gemini_key)
