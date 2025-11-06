@@ -247,14 +247,18 @@ Make queries diverse:
 Return ONLY the JSON array."""
 
         try:
+            print(f'[RankSimulator] Calling Gemini API for fallback...')
             model = genai.GenerativeModel(self.model)
             response = model.generate_content(prompt)
             raw = response.text.strip()
+            print(f'[RankSimulator] Gemini response received: {len(raw)} chars')
             
             # Clean and parse
             raw = re.sub(r'```json\s*', '', raw)
             raw = re.sub(r'```\s*', '', raw)
             raw = raw.strip()
+            
+            print(f'[RankSimulator] Cleaned response: {raw[:200]}...')
             
             if '[' in raw and ']' in raw:
                 start = raw.index('[')
@@ -267,9 +271,16 @@ Return ONLY the JSON array."""
                     
                     # Enrich
                     enriched = [enrich_query(q) for q in query_strings]
+                    print(f'[RankSimulator] Queries enriched successfully')
                     return enriched, "Direct Gemini generation (fallback)"
+                else:
+                    print(f'[RankSimulator] Parsed result is not a list: {type(parsed)}')
+            else:
+                print(f'[RankSimulator] No JSON array found in response')
         except Exception as e:
             print(f'[RankSimulator] Fallback failed: {e}')
+            import traceback
+            traceback.print_exc()
         
         return [], "Fallback failed"
     
