@@ -12,7 +12,6 @@ import numpy as np
 import dspy
 from google import genai
 from google.genai import types
-from sentence_transformers import SentenceTransformer
 
 # Configuration
 GEMINI_MODEL = 'gemini-2.0-flash-exp'
