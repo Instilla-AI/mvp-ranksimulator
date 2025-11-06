@@ -12,6 +12,9 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 from models import db, bcrypt, User, Analysis, AnalysisJob
 from auth import auth_bp
+from colab_analyzer import create_colab_analyzer
+import requests
+from bs4 import BeautifulSoup
 
 # Load environment variables
 load_dotenv()
@@ -447,11 +450,50 @@ def index():
         }
     })
 
+def extract_content_from_url(url):
+    """
+    Extract content from URL using BeautifulSoup
+    Exact copy from Colab
+    """
+    try:
+        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=15)
+        r.raise_for_status()
+        s = BeautifulSoup(r.content, 'lxml')
+        
+        # Remove unwanted tags
+        for t in s(['script', 'style', 'nav', 'footer', 'aside', 'iframe']):
+            t.decompose()
+        
+        title = s.find('title')
+        title_text = title.get_text(strip=True) if title else 'Untitled'
+        
+        main = s.find('main') or s.find('article') or s.find('body')
+        if main:
+            elems = main.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td'])
+            content = ' '.join([e.get_text(strip=True) for e in elems])
+        else:
+            content = s.get_text(separator=' ', strip=True)
+        
+        content = re.sub(r'\s+', ' ', content).strip()
+        
+        return {
+            'success': True,
+            'title': title_text,
+            'content': content,
+            'word_count': len(content.split()),
+            'url': url
+        }
+    except Exception as e:
+        return {'success': False, 'error': str(e), 'url': url}
+
+
 def process_analysis(job_id, url, user_id):
-    """Background task to process URL analysis"""
+    """
+    Background task using EXACT Colab logic
+    """
     with app.app_context():
         try:
-            print(f"[Job {job_id}] Starting analysis for: {url}")
+            print(f"[Job {job_id}] Starting Colab-based analysis for: {url}")
             
             # Update job in database
             job = AnalysisJob.query.get(job_id)
@@ -460,84 +502,135 @@ def process_analysis(job_id, url, user_id):
                 job.progress = "Extracting content..."
                 db.session.commit()
             
-            # Step 1: Extract entity and content from URL
-            url_insights = get_url_insights_and_content(url)
-        
+            # Step 1: Extract content (Colab method)
+            content_data = extract_content_from_url(url)
             
-            if url_insights["status"] == "failure":
+            if not content_data['success']:
                 if job:
                     job.status = "error"
-                    job.error = f"Failed to extract content: {url_insights.get('error', 'Unknown error')}"
+                    job.error = f"Failed to extract content: {content_data.get('error', 'Unknown error')}"
                     db.session.commit()
                 return
             
-            entity = url_insights["entity"]
-            language = url_insights["language"]
-            content_chunks = url_insights["content_chunks"]
-            
-            print(f"[Job {job_id}] Entity identified: {entity}, Language: {language}")
+            print(f"[Job {job_id}] Content extracted: {content_data['word_count']} words")
             if job:
-                job.progress = "Generating synthetic queries..."
+                job.progress = "Analyzing with Colab logic..."
                 db.session.commit()
             
-            # Step 2: Generate synthetic queries with routing in detected language
-            query_result = generate_synthetic_queries(entity, language, mode="complex")
+            # Step 2: Use Colab Analyzer (DSPy + Facets + Chunk Usage)
+            analyzer = create_colab_analyzer(GEMINI_API_KEY)
+            result = analyzer.analyze(
+                url=url,
+                content_data=content_data,
+                mode='AI Mode (complex)',
+                threshold=0.65
+            )
             
-            if query_result["status"] == "failure":
+            if not result['success']:
                 if job:
                     job.status = "error"
-                    job.error = f"Failed to generate queries: {query_result.get('error', 'Unknown error')}"
+                    job.error = result.get('error', 'Analysis failed')
                     db.session.commit()
                 return
             
-            expanded_queries = query_result["expanded_queries"]
-            generation_details = query_result["generation_details"]
-            
-            print(f"[Job {job_id}] Generated {len(expanded_queries)} queries")
-            if job:
-                job.progress = "Calculating coverage..."
-                db.session.commit()
-            
-            # Step 3: Calculate coverage
-            coverage_data = calculate_coverage(expanded_queries, content_chunks)
-            
-            print(f"[Job {job_id}] Coverage calculated: {coverage_data['coverage_score']:.2f}%")
+            print(f"[Job {job_id}] Analysis completed: {result['ai_visibility_score']:.2f}%")
             if job:
                 job.progress = "Generating recommendations..."
                 db.session.commit()
             
-            # Step 4: Generate recommendations
-            recommendations = generate_recommendations(coverage_data, entity)
+            # Step 3: Generate recommendations
+            recommendations = generate_recommendations_from_colab_result(result)
             
-            # Prepare response
+            # Prepare response with Colab structure
             response_data = {
                 "url": url,
-                "entity": entity,
-                "ai_visibility_score": round(coverage_data["coverage_score"], 2),
+                "entity": result['entity']['entity_name'],
+                "ai_visibility_score": result['ai_visibility_score'],
                 "coverage_details": {
-                    "covered_queries": coverage_data["covered_count"],
-                    "total_queries": coverage_data["total_queries"],
-                    "coverage_percentage": round(coverage_data["coverage_score"], 2)
+                    "covered_queries": result['covered_queries_count'],
+                    "total_queries": result['total_queries_count'],
+                    "coverage_percentage": result['ai_visibility_score']
                 },
-                "generation_details": generation_details,
-                "query_details": coverage_data["query_details"],
+                "generation_details": {
+                    "facets_reasoning": result['query_fanout']['facets_reasoning'],
+                    "search_mode": result['query_fanout']['search_mode'],
+                    "routing_used": "DSPy with Facets",
+                    "reasoning_used": "ChainOfThought"
+                },
+                "query_details": [
+                    {
+                        "query": qd['query'],
+                        "type": "technical",  # Could be enhanced
+                        "covered": qd['covered'],
+                        "similarity": qd['max_similarity'],
+                        "routing": "web_article",  # Could be enhanced
+                        "reasoning": f"Generated via facets reasoning for {result['entity']['entity_name']}",
+                        "best_chunk": qd.get('best_chunk', '')
+                    }
+                    for qd in result['query_details']
+                ],
+                "chunk_usage": result['chunk_usage'],
+                "unused_chunks": result['unused_chunks'],
                 "recommendations": recommendations,
-                "timestamp": datetime.datetime.utcnow().isoformat()
+                "timestamp": result['timestamp']
             }
             
             if job:
                 job.status = "completed"
                 job.result_data = response_data
                 db.session.commit()
-            print(f"[Job {job_id}] Analysis completed successfully")
+            print(f"[Job {job_id}] Colab analysis completed successfully")
             
         except Exception as e:
             print(f"[Job {job_id}] Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             job = AnalysisJob.query.get(job_id)
             if job:
                 job.status = "error"
                 job.error = str(e)
                 db.session.commit()
+
+
+def generate_recommendations_from_colab_result(result):
+    """Generate recommendations from Colab analysis result"""
+    recommendations = []
+    
+    # Identify gaps
+    gaps = [qd for qd in result['query_details'] if not qd['covered']]
+    
+    if gaps:
+        recommendations.append({
+            "type": "content_gap",
+            "priority": "high",
+            "title": f"Address {len(gaps)} Content Gaps",
+            "description": f"Create content to answer {len(gaps)} uncovered queries",
+            "queries": [g['query'] for g in gaps[:5]]
+        })
+    
+    # Check unused chunks
+    if result['unused_chunks']:
+        recommendations.append({
+            "type": "content_optimization",
+            "priority": "medium",
+            "title": f"{len(result['unused_chunks'])} Unused Content Sections",
+            "description": "Some content sections are not matching any queries. Consider removing or optimizing.",
+            "count": len(result['unused_chunks'])
+        })
+    
+    # Check overused chunks
+    chunk_usage = result['chunk_usage']
+    if chunk_usage:
+        max_usage = max(chunk_usage.values())
+        if max_usage > 5:
+            recommendations.append({
+                "type": "content_distribution",
+                "priority": "low",
+                "title": "Content Distribution Imbalance",
+                "description": f"Some content sections are matching {max_usage} queries. Consider distributing information more evenly."
+            })
+    
+    return recommendations
 
 @app.route('/api/analyze', methods=['POST'])
 @jwt_required()
