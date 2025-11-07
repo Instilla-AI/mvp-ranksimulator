@@ -327,6 +327,9 @@ Return ONLY the JSON array."""
         
         current_date = datetime.datetime.now().strftime("%B %d, %Y")
         
+        print(f'[RankSimulator] 🎯 Generating queries for entity: "{entity_name}"')
+        print(f'[RankSimulator] Date: {current_date}, Count: {num_queries}')
+        
         try:
             result = self.query_generator(
                 entity_name=entity_name,
@@ -390,6 +393,7 @@ Return ONLY the JSON array."""
             
             # POST-PROCESSING: Enrich each query with metadata
             print(f'[RankSimulator] Enriching {len(query_strings)} queries...')
+            print(f'[RankSimulator] Sample queries: {query_strings[:3]}')
             enriched_queries = []
             
             for q_text in query_strings[:num_queries]:
@@ -397,6 +401,7 @@ Return ONLY the JSON array."""
                 enriched_queries.append(enriched)
             
             print(f'[RankSimulator] {len(enriched_queries)} queries enriched with routing/reasoning/intent')
+            print(f'[RankSimulator] ✅ All queries generated for entity: "{entity_name}"')
             
             return enriched_queries, reasoning
         
