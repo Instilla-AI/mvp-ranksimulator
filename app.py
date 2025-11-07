@@ -463,47 +463,15 @@ def extract_content_from_url(url):
         r.raise_for_status()
         s = BeautifulSoup(r.content, 'lxml')
         
-        # Remove unwanted tags
-        for t in s(['script', 'style', 'nav', 'footer', 'aside', 'iframe']):
+        # Remove unwanted tags (same as notebook)
+        for t in s(['script', 'style', 'noscript', 'iframe', 'svg', 'nav', 'footer', 'aside']):
             t.decompose()
         
         title = s.find('title')
         title_text = title.get_text(strip=True) if title else 'Untitled'
         
-        # Extract content - try multiple strategies
-        content = None
-        
-        # Strategy 1: Try article tag
-        article = s.find('article')
-        if article:
-            content = article.get_text(separator=' ', strip=True)
-            print(f"[Content Extraction] Using <article> tag")
-        
-        # Strategy 2: Try main tag
-        if not content or len(content.split()) < 100:
-            main = s.find('main')
-            if main:
-                content = main.get_text(separator=' ', strip=True)
-                print(f"[Content Extraction] Using <main> tag")
-        
-        # Strategy 3: Try div with common content classes
-        if not content or len(content.split()) < 100:
-            content_divs = s.find_all('div', class_=re.compile(r'(content|post|article|entry|text|body)', re.I))
-            if content_divs:
-                content = ' '.join([div.get_text(separator=' ', strip=True) for div in content_divs])
-                print(f"[Content Extraction] Using content divs ({len(content_divs)} found)")
-        
-        # Strategy 4: Fallback to body
-        if not content or len(content.split()) < 100:
-            body = s.find('body')
-            if body:
-                content = body.get_text(separator=' ', strip=True)
-                print(f"[Content Extraction] Using <body> tag (fallback)")
-        
-        # Final fallback
-        if not content:
-            content = s.get_text(separator=' ', strip=True)
-            print(f"[Content Extraction] Using full page text (last resort)")
+        # Extract ALL text - simple and effective like the notebook
+        content = s.get_text(separator=' ', strip=True)
         
         # Clean up whitespace
         content = re.sub(r'\s+', ' ', content).strip()
