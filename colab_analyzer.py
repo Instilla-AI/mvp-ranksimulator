@@ -406,26 +406,69 @@ Return ONLY the JSON array."""
             traceback.print_exc()
             return [], f"Error: {e}"
     
-    def _extract_entity(self, title, content):
-        """Extract entity using Gemini"""
-        prompt = f"""Extract the main entity/topic.
-
-Title: {title}
-Content: {content[:500]}
-
-Return JSON:
-{{"entity_name": "main topic", "reasoning": "why"}}"""
+    def _extract_entity_and_content(self, url):
+        """Extract entity and grounded content chunks using Gemini url_context tool"""
+        print(f'[RankSimulator] Using Gemini url_context tool for: {url}')
+        
+        prompt = f"""Analyze the content of the webpage at: {url}. 
+Identify and state the primary subject or main entity of this page. 
+Respond concisely with only the entity name."""
         
         try:
+            # Use url_context tool to get grounded content
             model = genai.GenerativeModel(self.model)
             response = model.generate_content(
                 prompt,
-                generation_config=genai.types.GenerationConfig(temperature=0.3)
+                tools=[{'google_search_retrieval': {'dynamic_retrieval_config': {'mode': 'MODE_DYNAMIC'}}}]
             )
-            result = response.text.strip().replace('```json', '').replace('```', '').strip()
-            return json.loads(result)
-        except:
-            return {'entity_name': title, 'reasoning': 'Fallback'}
+            
+            entity_text = None
+            grounded_chunks = []
+            
+            # Extract entity from response
+            if response.candidates and response.candidates[0].content.parts:
+                entity_text = response.candidates[0].content.parts[0].text.strip()
+            
+            # Extract grounded chunks if available
+            if hasattr(response.candidates[0], 'grounding_metadata'):
+                metadata = response.candidates[0].grounding_metadata
+                if hasattr(metadata, 'grounding_chunks'):
+                    for chunk in metadata.grounding_chunks:
+                        if hasattr(chunk, 'retrieved_context') and chunk.retrieved_context:
+                            if hasattr(chunk.retrieved_context, 'text'):
+                                grounded_chunks.append(chunk.retrieved_context.text.strip())
+            
+            # Clean entity text
+            if entity_text:
+                entity_text = re.sub(r'^(The main entity.*?is\s*:?\s*)+', '', entity_text, flags=re.IGNORECASE)
+                entity_text = entity_text.strip().split('\n')[0].strip('."\' ')
+            
+            # Fallback to domain name if entity extraction failed
+            if not entity_text:
+                from urllib.parse import urlparse
+                parsed = urlparse(url)
+                entity_text = parsed.netloc.replace('www.', '').split('.')[0].title()
+            
+            print(f'[RankSimulator] Entity: {entity_text}')
+            print(f'[RankSimulator] Grounded chunks: {len(grounded_chunks)}')
+            
+            return {
+                'entity_name': entity_text,
+                'reasoning': 'Extracted via url_context tool',
+                'grounded_chunks': grounded_chunks
+            }
+            
+        except Exception as e:
+            print(f'[RankSimulator] url_context tool failed: {e}')
+            # Fallback to domain name
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            entity_text = parsed.netloc.replace('www.', '').split('.')[0].title()
+            return {
+                'entity_name': entity_text,
+                'reasoning': 'Fallback to domain',
+                'grounded_chunks': []
+            }
     
     def _embed(self, texts):
         """Embeddings with Gemini"""
@@ -443,10 +486,9 @@ Return JSON:
         """Full analysis with enriched queries"""
         print(f'[RankSimulator] Starting analysis for: {url}')
         
-        # Extract entity
-        print('[RankSimulator] Extracting entity...')
-        ed = self._extract_entity(content_data['title'], content_data['content'])
-        print(f'[RankSimulator] Entity: {ed["entity_name"]}')
+        # Extract entity and grounded content using url_context tool
+        print('[RankSimulator] Extracting entity with url_context tool...')
+        ed = self._extract_entity_and_content(url)
         
         # Generate queries
         print('[RankSimulator] Generating queries...')
@@ -458,10 +500,23 @@ Return JSON:
         
         print(f'[RankSimulator] {len(queries)} queries generated and enriched')
         
-        # Chunking - use Chonkie semantic chunking
-        print('[RankSimulator] Chunking content with Chonkie...')
-        chunks = semantic_chunk_text_chonkie(content_data['content'], self.gemini_key)
-        print(f'[RankSimulator] {len(chunks)} Chonkie chunks created')
+        # Use grounded chunks if available, otherwise chunk the content
+        if ed.get('grounded_chunks'):
+            print(f'[RankSimulator] Using {len(ed["grounded_chunks"])} grounded chunks from url_context')
+            # Validate and re-chunk if needed (max 6000 chars per chunk)
+            chunks = []
+            for chunk in ed['grounded_chunks']:
+                if len(chunk) > 6000:
+                    print(f'[RankSimulator] Re-chunking large grounded chunk ({len(chunk)} chars)')
+                    sub_chunks = chunk_text(chunk, size=512, overlap=50)
+                    chunks.extend(sub_chunks)
+                else:
+                    chunks.append(chunk)
+            print(f'[RankSimulator] Final chunk count: {len(chunks)}')
+        else:
+            print('[RankSimulator] No grounded chunks, using Chonkie semantic chunking...')
+            chunks = semantic_chunk_text_chonkie(content_data['content'], self.gemini_key)
+            print(f'[RankSimulator] {len(chunks)} Chonkie chunks created')
         
         # Embeddings
         print('[RankSimulator] Generating embeddings...')
