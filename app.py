@@ -455,7 +455,11 @@ def extract_content_from_url(url):
     Extract content from URL using BeautifulSoup
     """
     try:
-        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=15)
+        # Increase timeout and add retry logic
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        r = requests.get(url, headers=headers, timeout=30, allow_redirects=True)
         r.raise_for_status()
         s = BeautifulSoup(r.content, 'lxml')
         
@@ -488,8 +492,30 @@ def extract_content_from_url(url):
             'word_count': len(content.split()),
             'url': url
         }
+    except requests.exceptions.Timeout:
+        return {
+            'success': False, 
+            'error': 'Connection timeout - the website took too long to respond. Please try again or use a different URL.',
+            'url': url
+        }
+    except requests.exceptions.ConnectionError as e:
+        return {
+            'success': False,
+            'error': f'Connection failed - unable to reach the website. Please check the URL or try again later. ({str(e)[:100]})',
+            'url': url
+        }
+    except requests.exceptions.HTTPError as e:
+        return {
+            'success': False,
+            'error': f'HTTP error {e.response.status_code} - the website returned an error.',
+            'url': url
+        }
     except Exception as e:
-        return {'success': False, 'error': str(e), 'url': url}
+        return {
+            'success': False, 
+            'error': f'Failed to extract content: {str(e)[:200]}',
+            'url': url
+        }
 
 
 def process_analysis(job_id, url, user_id):
