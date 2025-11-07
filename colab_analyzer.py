@@ -205,10 +205,12 @@ def semantic_chunk_text_chonkie(text, gemini_key):
     print(f'[RankSimulator] Using Chonkie semantic chunker with Gemini...')
     
     try:
-        # Initialize Chonkie with Gemini
+        # Initialize Chonkie - uses embedding model, not LLM
+        # Chonkie uses sentence-transformers by default with model2vec
         chunker = SemanticChunker(
-            model="gemini-1.5-flash",
-            api_key=gemini_key
+            embedding_model="all-MiniLM-L6-v2",
+            chunk_size=512,
+            threshold=0.5
         )
         
         # Perform chunking
@@ -218,8 +220,8 @@ def semantic_chunk_text_chonkie(text, gemini_key):
         chunk_texts = [chunk.text.strip() for chunk in chunks]
         
         print(f'[RankSimulator] Created {len(chunk_texts)} semantic chunks with Chonkie')
-        for i, chunk_text in enumerate(chunk_texts):
-            word_count = len(chunk_text.split())
+        for i, ct in enumerate(chunk_texts):
+            word_count = len(ct.split())
             print(f'[RankSimulator]   Chunk {i+1}: {word_count} words')
         
         return chunk_texts
@@ -228,6 +230,7 @@ def semantic_chunk_text_chonkie(text, gemini_key):
         print(f'[RankSimulator] Chonkie chunking failed: {e}, using mechanical fallback')
         import traceback
         traceback.print_exc()
+        # Use the mechanical chunking function defined above
         return chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
 
 
