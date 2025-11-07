@@ -213,12 +213,19 @@ def semantic_chunk_text_chonkie(text, gemini_key):
         )
         chunks = chunker.chunk(text)
         
-        # Extract text from Chunk objects
+        # Extract text from Chunk objects - handle both object and string types
         chunk_texts = []
         for chunk in chunks:
-            chunk_texts.append(chunk.text.strip())
+            if hasattr(chunk, 'text'):
+                chunk_texts.append(chunk.text.strip())
+            else:
+                chunk_texts.append(str(chunk).strip())
         
-        print(f'[RankSimulator] Created {len(chunk_texts)} semantic chunks with Chonkie')
+        if not chunk_texts:
+            print('[RankSimulator] ⚠️ Chonkie returned empty chunks, using fallback')
+            return chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
+        
+        print(f'[RankSimulator] ✅ Created {len(chunk_texts)} semantic chunks with Chonkie')
         for i, ct in enumerate(chunk_texts, 1):
             word_count = len(ct.split())
             print(f'[RankSimulator]   Chunk {i}: {word_count} words')
