@@ -201,12 +201,24 @@ def chunk_text(text, size=512, overlap=50):
 
 
 def semantic_chunk_text_chonkie(text, gemini_key):
-    """Semantic chunking using Chonkie - exactly as in Colab script"""
+    """Semantic chunking using Chonkie with correct API"""
     print(f'[RankSimulator] Using Chonkie semantic chunker with Gemini...')
     
     try:
-        # Initialize exactly as in your Colab script
-        chunker = SemanticChunker(model="gemini-1.5-flash", api_key=gemini_key)
+        # Chonkie 0.2.0 uses different initialization
+        # Try with tokenizer parameter for Gemini
+        from chonkie import SemanticChunker
+        import os
+        
+        # Set API key in environment for Chonkie
+        os.environ['GOOGLE_API_KEY'] = gemini_key
+        
+        # Initialize with tokenizer (Chonkie will use Gemini internally)
+        chunker = SemanticChunker(
+            tokenizer="gpt2",  # Tokenizer for counting
+            max_chunk_size=512,
+            similarity_threshold=0.5
+        )
         
         # Perform chunking
         chunks = chunker.chunk(text)
