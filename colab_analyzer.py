@@ -201,19 +201,32 @@ def chunk_text(text, size=512, overlap=50):
 
 
 def semantic_chunk_text_chonkie(text, gemini_key):
-    """Semantic chunking - force mechanical split for reliability"""
-    print(f'[RankSimulator] Using sentence-based chunking (Chonkie fallback)...')
+    """Semantic chunking using Chonkie - EXACT Colab code"""
+    print(f'[RankSimulator] Using Chonkie semantic chunker with Gemini...')
     
-    # Chonkie API is unstable across versions - use reliable mechanical chunking
-    # This ensures multiple chunks are always created
-    chunks = chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
-    
-    print(f'[RankSimulator] Created {len(chunks)} chunks')
-    for i, ct in enumerate(chunks):
-        word_count = len(ct.split())
-        print(f'[RankSimulator]   Chunk {i+1}: {word_count} words')
-    
-    return chunks
+    try:
+        # EXACT code from Colab script
+        chunker = SemanticChunker(model="gemini-1.5-flash", api_key=gemini_key)
+        chunks = chunker.chunk(text)
+        
+        # Extract text from Chunk objects
+        chunk_texts = []
+        for i, chunk in enumerate(chunks, 1):
+            chunk_texts.append(chunk.text.strip())
+        
+        print(f'[RankSimulator] Created {len(chunk_texts)} semantic chunks with Chonkie')
+        for i, ct in enumerate(chunk_texts, 1):
+            word_count = len(ct.split())
+            print(f'[RankSimulator]   Chunk {i}: {word_count} words')
+        
+        return chunk_texts
+        
+    except Exception as e:
+        print(f'[RankSimulator] Chonkie failed: {e}')
+        import traceback
+        traceback.print_exc()
+        # Fallback
+        return chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
 
 
 # ============================================================================
