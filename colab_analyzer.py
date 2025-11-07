@@ -201,23 +201,24 @@ def chunk_text(text, size=512, overlap=50):
 
 
 def semantic_chunk_text_chonkie(text, gemini_key):
-    """Semantic chunking using Chonkie library with Gemini"""
-    print(f'[RankSimulator] Using Chonkie semantic chunker with Gemini...')
+    """Semantic chunking using Chonkie library"""
+    print(f'[RankSimulator] Using Chonkie semantic chunker...')
     
     try:
-        # Initialize Chonkie - uses embedding model, not LLM
-        # Chonkie uses sentence-transformers by default with model2vec
-        chunker = SemanticChunker(
-            embedding_model="all-MiniLM-L6-v2",
-            chunk_size=512,
-            threshold=0.5
-        )
+        # Initialize Chonkie with minimal parameters
+        # SemanticChunker uses model2vec embeddings by default
+        chunker = SemanticChunker()
         
         # Perform chunking
         chunks = chunker.chunk(text)
         
         # Extract text from Chunk objects
         chunk_texts = [chunk.text.strip() for chunk in chunks]
+        
+        # If only 1 chunk, force split into smaller pieces
+        if len(chunk_texts) == 1 and len(text.split()) > 400:
+            print(f'[RankSimulator] Single chunk detected, forcing mechanical split...')
+            return chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
         
         print(f'[RankSimulator] Created {len(chunk_texts)} semantic chunks with Chonkie')
         for i, ct in enumerate(chunk_texts):
