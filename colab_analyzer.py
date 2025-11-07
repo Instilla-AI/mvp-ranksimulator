@@ -201,12 +201,15 @@ def chunk_text(text, size=512, overlap=50):
 
 
 def semantic_chunk_text_chonkie(text, gemini_key):
-    """Semantic chunking using Chonkie - EXACT Colab code"""
+    """Semantic chunking using Chonkie with Gemini embeddings"""
     print(f'[RankSimulator] Using Chonkie semantic chunker with Gemini...')
     
     try:
-        # EXACT code from Colab script
-        chunker = SemanticChunker(model="gemini-1.5-flash", api_key=gemini_key)
+        # Chonkie 0.3+ API - use embedding_model parameter
+        chunker = SemanticChunker(
+            embedding_model="gemini/embedding-001",
+            api_key=gemini_key
+        )
         chunks = chunker.chunk(text)
         
         # Extract text from Chunk objects
