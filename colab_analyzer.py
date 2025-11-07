@@ -406,71 +406,58 @@ Return ONLY the JSON array."""
             traceback.print_exc()
             return [], f"Error: {e}"
     
-    def _extract_entity_and_content(self, url):
-        """Extract entity and grounded content chunks using Gemini url_context tool"""
-        print(f'[RankSimulator] Using Gemini url_context tool for: {url}')
+    def _extract_entity(self, title, content):
+        """Extract entity from title and content using Gemini - SIMPLE AND RELIABLE"""
+        print(f'[RankSimulator] Extracting entity from title and content...')
         
-        prompt = f"""Analyze the content of the webpage at: {url}. 
-Identify and state the primary subject or main entity of this page. 
-Respond concisely with only the entity name."""
+        # Use MORE content for better entity extraction (not just 500 chars)
+        content_sample = content[:2000] if len(content) > 2000 else content
+        
+        prompt = f"""You are analyzing a webpage to identify its MAIN TOPIC.
+
+TITLE: {title}
+
+CONTENT PREVIEW:
+{content_sample}
+
+INSTRUCTIONS:
+1. The MAIN TOPIC is what the article is ABOUT, not the website name
+2. Focus on the TITLE first - it usually contains the main topic
+3. Look at the content to confirm
+
+Return ONLY the main topic/entity name. Examples:
+- If title is "SEO Audit Guide" → return "SEO Audit"
+- If title is "Python Tutorial" → return "Python Programming"
+- If title is "Marketing Tips" → return "Marketing"
+
+MAIN TOPIC:"""
         
         try:
-            # Use url_context tool - EXACT API from notebook using google.genai SDK
-            from google import genai as genai_client
-            client = genai_client.Client(api_key=self.gemini_key)
-            
-            response = client.models.generate_content(
-                model=self.model,
-                contents=[prompt],
-                config={'tools': [{'url_context': {}}]}
+            model = genai.GenerativeModel(self.model)
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(temperature=0.2)
             )
             
-            entity_text = None
-            grounded_chunks = []
+            entity_text = response.text.strip()
             
-            # Extract entity from response
-            if response.candidates and response.candidates[0].content.parts:
-                entity_text = response.candidates[0].content.parts[0].text.strip()
+            # Clean up common prefixes
+            entity_text = re.sub(r'^(The main (topic|entity|subject) (is|of this page is)\s*:?\s*)+', '', entity_text, flags=re.IGNORECASE)
+            entity_text = entity_text.strip().split('\n')[0].strip('."\' ')
             
-            # Extract grounded chunks if available
-            if hasattr(response.candidates[0], 'grounding_metadata'):
-                metadata = response.candidates[0].grounding_metadata
-                if hasattr(metadata, 'grounding_chunks'):
-                    for chunk in metadata.grounding_chunks:
-                        if hasattr(chunk, 'retrieved_context') and chunk.retrieved_context:
-                            if hasattr(chunk.retrieved_context, 'text'):
-                                grounded_chunks.append(chunk.retrieved_context.text.strip())
-            
-            # Clean entity text
-            if entity_text:
-                entity_text = re.sub(r'^(The main entity.*?is\s*:?\s*)+', '', entity_text, flags=re.IGNORECASE)
-                entity_text = entity_text.strip().split('\n')[0].strip('."\' ')
-            
-            # Fallback to domain name if entity extraction failed
-            if not entity_text:
-                from urllib.parse import urlparse
-                parsed = urlparse(url)
-                entity_text = parsed.netloc.replace('www.', '').split('.')[0].title()
-            
-            print(f'[RankSimulator] Entity: {entity_text}')
-            print(f'[RankSimulator] Grounded chunks: {len(grounded_chunks)}')
+            print(f'[RankSimulator] ✅ Entity extracted: "{entity_text}"')
             
             return {
                 'entity_name': entity_text,
-                'reasoning': 'Extracted via url_context tool',
-                'grounded_chunks': grounded_chunks
+                'reasoning': 'Extracted from title and content'
             }
             
         except Exception as e:
-            print(f'[RankSimulator] url_context tool failed: {e}')
-            # Fallback to domain name
-            from urllib.parse import urlparse
-            parsed = urlparse(url)
-            entity_text = parsed.netloc.replace('www.', '').split('.')[0].title()
+            print(f'[RankSimulator] Entity extraction failed: {e}')
+            # Fallback to title
             return {
-                'entity_name': entity_text,
-                'reasoning': 'Fallback to domain',
-                'grounded_chunks': []
+                'entity_name': title,
+                'reasoning': 'Fallback to title'
             }
     
     def _embed(self, texts):
@@ -488,38 +475,26 @@ Respond concisely with only the entity name."""
     def analyze(self, url, content_data, threshold=0.65):
         """Full analysis with enriched queries"""
         print(f'[RankSimulator] Starting analysis for: {url}')
+        print(f'[RankSimulator] Title: {content_data["title"]}')
+        print(f'[RankSimulator] Content length: {len(content_data["content"])} chars')
         
-        # Extract entity and grounded content using url_context tool
-        print('[RankSimulator] Extracting entity with url_context tool...')
-        ed = self._extract_entity_and_content(url)
+        # STEP 1: Extract entity from title and content
+        ed = self._extract_entity(content_data['title'], content_data['content'])
         
-        # Generate queries
-        print('[RankSimulator] Generating queries...')
+        # STEP 2: Generate synthetic queries based on entity
+        print('[RankSimulator] Generating synthetic queries...')
         queries, reasoning = self._generate_queries(ed["entity_name"], MIN_QUERIES_COMPLEX)
         
         if not queries:
             print('[RankSimulator] No queries generated')
             return {'success': False, 'error': 'No queries generated', 'url': url}
         
-        print(f'[RankSimulator] {len(queries)} queries generated and enriched')
+        print(f'[RankSimulator] {len(queries)} queries generated')
         
-        # Use grounded chunks if available, otherwise chunk the content
-        if ed.get('grounded_chunks'):
-            print(f'[RankSimulator] Using {len(ed["grounded_chunks"])} grounded chunks from url_context')
-            # Validate and re-chunk if needed (max 6000 chars per chunk)
-            chunks = []
-            for chunk in ed['grounded_chunks']:
-                if len(chunk) > 6000:
-                    print(f'[RankSimulator] Re-chunking large grounded chunk ({len(chunk)} chars)')
-                    sub_chunks = chunk_text(chunk, size=512, overlap=50)
-                    chunks.extend(sub_chunks)
-                else:
-                    chunks.append(chunk)
-            print(f'[RankSimulator] Final chunk count: {len(chunks)}')
-        else:
-            print('[RankSimulator] No grounded chunks, using Chonkie semantic chunking...')
-            chunks = semantic_chunk_text_chonkie(content_data['content'], self.gemini_key)
-            print(f'[RankSimulator] {len(chunks)} Chonkie chunks created')
+        # STEP 3: Chunk the content with Chonkie semantic chunking
+        print('[RankSimulator] Chunking content with Chonkie...')
+        chunks = semantic_chunk_text_chonkie(content_data['content'], self.gemini_key)
+        print(f'[RankSimulator] Created {len(chunks)} semantic chunks')
         
         # Embeddings
         print('[RankSimulator] Generating embeddings...')
