@@ -415,16 +415,15 @@ Identify and state the primary subject or main entity of this page.
 Respond concisely with only the entity name."""
         
         try:
-            # Use url_context tool - EXACT API from notebook
-            import google.generativeai as genai_sdk
-            genai_sdk.configure(api_key=self.gemini_key)
+            # Use url_context tool - EXACT API from notebook using google.genai SDK
+            from google import genai as genai_client
+            client = genai_client.Client(api_key=self.gemini_key)
             
-            model = genai_sdk.GenerativeModel(
-                model_name=self.model,
-                tools=[{'url_context': {}}]
+            response = client.models.generate_content(
+                model=self.model,
+                contents=[prompt],
+                config={'tools': [{'url_context': {}}]}
             )
-            
-            response = model.generate_content(prompt)
             
             entity_text = None
             grounded_chunks = []
