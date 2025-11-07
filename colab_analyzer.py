@@ -201,20 +201,21 @@ def chunk_text(text, size=512, overlap=50):
 
 
 def semantic_chunk_text_chonkie(text, gemini_key):
-    """Semantic chunking using Chonkie with Gemini embeddings"""
-    print(f'[RankSimulator] Using Chonkie semantic chunker with Gemini...')
+    """Semantic chunking using Chonkie - per documentation"""
+    print(f'[RankSimulator] Using Chonkie semantic chunker...')
     
     try:
-        # Chonkie 0.3+ API - use embedding_model parameter
+        # Per Chonkie documentation - use supported embedding model
         chunker = SemanticChunker(
-            embedding_model="gemini/embedding-001",
-            api_key=gemini_key
+            embedding_model="minishlab/potion-base-32M",  # Default supported model
+            threshold=0.5,  # Similarity threshold
+            chunk_size=512  # Max tokens per chunk
         )
         chunks = chunker.chunk(text)
         
         # Extract text from Chunk objects
         chunk_texts = []
-        for i, chunk in enumerate(chunks, 1):
+        for chunk in chunks:
             chunk_texts.append(chunk.text.strip())
         
         print(f'[RankSimulator] Created {len(chunk_texts)} semantic chunks with Chonkie')
