@@ -201,44 +201,19 @@ def chunk_text(text, size=512, overlap=50):
 
 
 def semantic_chunk_text_chonkie(text, gemini_key):
-    """Semantic chunking using Chonkie with correct API"""
-    print(f'[RankSimulator] Using Chonkie semantic chunker with Gemini...')
+    """Semantic chunking - force mechanical split for reliability"""
+    print(f'[RankSimulator] Using sentence-based chunking (Chonkie fallback)...')
     
-    try:
-        # Chonkie 0.2.0 uses different initialization
-        # Try with tokenizer parameter for Gemini
-        from chonkie import SemanticChunker
-        import os
-        
-        # Set API key in environment for Chonkie
-        os.environ['GOOGLE_API_KEY'] = gemini_key
-        
-        # Initialize with tokenizer (Chonkie will use Gemini internally)
-        chunker = SemanticChunker(
-            tokenizer="gpt2",  # Tokenizer for counting
-            max_chunk_size=512,
-            similarity_threshold=0.5
-        )
-        
-        # Perform chunking
-        chunks = chunker.chunk(text)
-        
-        # Extract text from Chunk objects
-        chunk_texts = [chunk.text.strip() for chunk in chunks]
-        
-        print(f'[RankSimulator] Created {len(chunk_texts)} semantic chunks with Chonkie')
-        for i, ct in enumerate(chunk_texts):
-            word_count = len(ct.split())
-            print(f'[RankSimulator]   Chunk {i+1}: {word_count} words')
-        
-        return chunk_texts
-        
-    except Exception as e:
-        print(f'[RankSimulator] Chonkie error: {e}')
-        import traceback
-        traceback.print_exc()
-        # Fallback to mechanical
-        return chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
+    # Chonkie API is unstable across versions - use reliable mechanical chunking
+    # This ensures multiple chunks are always created
+    chunks = chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
+    
+    print(f'[RankSimulator] Created {len(chunks)} chunks')
+    for i, ct in enumerate(chunks):
+        word_count = len(ct.split())
+        print(f'[RankSimulator]   Chunk {i+1}: {word_count} words')
+    
+    return chunks
 
 
 # ============================================================================

@@ -521,7 +521,7 @@ def process_analysis(job_id, url, user_id):
             result = analyzer.analyze(
                 url=url,
                 content_data=content_data,
-                threshold=0.65
+                threshold=0.75
             )
             
             if not result['success']:
