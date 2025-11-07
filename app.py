@@ -466,14 +466,20 @@ def extract_content_from_url(url):
         title = s.find('title')
         title_text = title.get_text(strip=True) if title else 'Untitled'
         
-        main = s.find('main') or s.find('article') or s.find('body')
+        # Extract content - prioritize article/main, but get ALL text
+        main = s.find('article') or s.find('main') or s.find('body')
         if main:
-            elems = main.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td'])
-            content = ' '.join([e.get_text(strip=True) for e in elems])
+            # Get ALL text from the main content area, not just specific tags
+            content = main.get_text(separator=' ', strip=True)
         else:
             content = s.get_text(separator=' ', strip=True)
         
+        # Clean up whitespace
         content = re.sub(r'\s+', ' ', content).strip()
+        
+        # Log content length for debugging
+        print(f"[Content Extraction] Title: {title_text}")
+        print(f"[Content Extraction] Content length: {len(content)} chars, {len(content.split())} words")
         
         return {
             'success': True,
