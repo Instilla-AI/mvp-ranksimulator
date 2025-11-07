@@ -18,7 +18,7 @@ MIN_QUERIES_SIMPLE = 10
 MIN_QUERIES_COMPLEX = 20
 CHUNK_SIZE = 512
 CHUNK_OVERLAP = 50
-SIMILARITY_THRESHOLD = 0.65
+SIMILARITY_THRESHOLD = 0.75
 GEMINI_MODEL = 'gemini-2.0-flash-exp'
 GEMINI_EMBEDDING_MODEL = 'models/text-embedding-004'
 
@@ -201,24 +201,18 @@ def chunk_text(text, size=512, overlap=50):
 
 
 def semantic_chunk_text_chonkie(text, gemini_key):
-    """Semantic chunking using Chonkie library"""
-    print(f'[RankSimulator] Using Chonkie semantic chunker...')
+    """Semantic chunking using Chonkie - exactly as in Colab script"""
+    print(f'[RankSimulator] Using Chonkie semantic chunker with Gemini...')
     
     try:
-        # Initialize Chonkie with minimal parameters
-        # SemanticChunker uses model2vec embeddings by default
-        chunker = SemanticChunker()
+        # Initialize exactly as in your Colab script
+        chunker = SemanticChunker(model="gemini-1.5-flash", api_key=gemini_key)
         
         # Perform chunking
         chunks = chunker.chunk(text)
         
         # Extract text from Chunk objects
         chunk_texts = [chunk.text.strip() for chunk in chunks]
-        
-        # If only 1 chunk, force split into smaller pieces
-        if len(chunk_texts) == 1 and len(text.split()) > 400:
-            print(f'[RankSimulator] Single chunk detected, forcing mechanical split...')
-            return chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
         
         print(f'[RankSimulator] Created {len(chunk_texts)} semantic chunks with Chonkie')
         for i, ct in enumerate(chunk_texts):
@@ -228,10 +222,10 @@ def semantic_chunk_text_chonkie(text, gemini_key):
         return chunk_texts
         
     except Exception as e:
-        print(f'[RankSimulator] Chonkie chunking failed: {e}, using mechanical fallback')
+        print(f'[RankSimulator] Chonkie error: {e}')
         import traceback
         traceback.print_exc()
-        # Use the mechanical chunking function defined above
+        # Fallback to mechanical
         return chunk_text(text, CHUNK_SIZE, CHUNK_OVERLAP)
 
 
