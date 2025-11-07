@@ -452,16 +452,65 @@ def index():
 
 def extract_content_from_url(url):
     """
-    Extract content from URL using BeautifulSoup
+    Extract content from URL using BeautifulSoup with retry logic
     """
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    
+    # Retry logic - try 3 times with increasing timeout
+    max_retries = 3
+    timeouts = [15, 30, 45]  # Progressive timeout
+    
+    for attempt in range(max_retries):
+        try:
+            timeout = timeouts[attempt]
+            print(f"[Content Extraction] Attempt {attempt + 1}/{max_retries} with {timeout}s timeout...")
+            
+            r = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+            r.raise_for_status()
+            s = BeautifulSoup(r.content, 'lxml')
+            
+            # If we get here, request succeeded
+            break
+            
+        except requests.exceptions.Timeout:
+            if attempt < max_retries - 1:
+                print(f"[Content Extraction] Timeout on attempt {attempt + 1}, retrying...")
+                continue
+            else:
+                # Final attempt failed
+                return {
+                    'success': False, 
+                    'error': f'Connection timeout after {max_retries} attempts - the website is too slow or unreachable.',
+                    'url': url
+                }
+        except requests.exceptions.ConnectionError as e:
+            if attempt < max_retries - 1:
+                print(f"[Content Extraction] Connection error on attempt {attempt + 1}, retrying...")
+                continue
+            else:
+                return {
+                    'success': False,
+                    'error': f'Connection failed after {max_retries} attempts - unable to reach the website.',
+                    'url': url
+                }
+        except requests.exceptions.HTTPError as e:
+            # Don't retry on HTTP errors (404, 500, etc.)
+            return {
+                'success': False,
+                'error': f'HTTP error {e.response.status_code} - the website returned an error.',
+                'url': url
+            }
+        except Exception as e:
+            return {
+                'success': False, 
+                'error': f'Failed to extract content: {str(e)[:200]}',
+                'url': url
+            }
+    
+    # Continue with parsing if request succeeded
     try:
-        # Increase timeout and add retry logic
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        r = requests.get(url, headers=headers, timeout=30, allow_redirects=True)
-        r.raise_for_status()
-        s = BeautifulSoup(r.content, 'lxml')
         
         # Remove unwanted tags (same as notebook)
         for t in s(['script', 'style', 'noscript', 'iframe', 'svg', 'nav', 'footer', 'aside']):
@@ -487,28 +536,11 @@ def extract_content_from_url(url):
             'word_count': len(content.split()),
             'url': url
         }
-    except requests.exceptions.Timeout:
-        return {
-            'success': False, 
-            'error': 'Connection timeout - the website took too long to respond. Please try again or use a different URL.',
-            'url': url
-        }
-    except requests.exceptions.ConnectionError as e:
-        return {
-            'success': False,
-            'error': f'Connection failed - unable to reach the website. Please check the URL or try again later. ({str(e)[:100]})',
-            'url': url
-        }
-    except requests.exceptions.HTTPError as e:
-        return {
-            'success': False,
-            'error': f'HTTP error {e.response.status_code} - the website returned an error.',
-            'url': url
-        }
     except Exception as e:
+        # Catch any parsing errors
         return {
             'success': False, 
-            'error': f'Failed to extract content: {str(e)[:200]}',
+            'error': f'Failed to parse content: {str(e)[:200]}',
             'url': url
         }
 
