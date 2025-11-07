@@ -538,6 +538,9 @@ MAIN TOPIC:"""
                 chunk_usage[bi] = 0
             chunk_usage[bi] += 1
             
+            # Always include best chunk (even if below threshold) for analysis
+            best_chunk_text = chunks[bi] if bi < len(chunks) else ''
+            
             results.append({
                 'query': qt,
                 'type': query_obj.get('type', 'unknown'),
@@ -547,11 +550,14 @@ MAIN TOPIC:"""
                 'format_reason': query_obj.get('format_reason', 'N/A'),
                 'max_similarity': round(ms, 4),
                 'best_chunk_idx': bi,
-                'best_chunk': chunks[bi] if cov else '',
+                'best_chunk': best_chunk_text,  # Always show, even if not covered
                 'covered': cov
             })
             
-            print(f'[RankSimulator] {"✅" if cov else "❌"} {i}. {qt[:40]}... {ms:.3f}')
+            # Enhanced logging with chunk preview
+            status = "✅" if cov else "❌"
+            chunk_preview = best_chunk_text[:60] + "..." if best_chunk_text else "No chunks"
+            print(f'[RankSimulator] {status} {i}. {qt[:40]}... {ms:.3f} | Chunk: {chunk_preview}')
         
         total = len(results)
         score = (covered / total * 100) if total else 0
