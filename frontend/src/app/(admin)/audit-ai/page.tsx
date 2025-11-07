@@ -186,7 +186,15 @@ export default function AuditAIPage() {
                 </div>
               </div>
             </div>
-            <div className="mt-4 text-center">
+            <div className="mt-4 space-y-2 text-center">
+              <div className="rounded-md bg-blue-50 px-3 py-2 dark:bg-blue-900/20">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  Main Entity
+                </p>
+                <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                  {result.entity}
+                </p>
+              </div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {result.coverage_details.covered_queries} of {result.coverage_details.total_queries} queries covered
               </p>

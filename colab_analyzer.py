@@ -480,9 +480,10 @@ MAIN TOPIC:"""
         
         # STEP 1: Extract entity from title and content
         ed = self._extract_entity(content_data['title'], content_data['content'])
+        print(f'[RankSimulator] 🎯 MAIN ENTITY: "{ed["entity_name"]}"')
         
         # STEP 2: Generate synthetic queries based on entity
-        print('[RankSimulator] Generating synthetic queries...')
+        print(f'[RankSimulator] Generating synthetic queries for: {ed["entity_name"]}...')
         queries, reasoning = self._generate_queries(ed["entity_name"], MIN_QUERIES_COMPLEX)
         
         if not queries:
